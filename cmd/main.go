@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Lookyan/netra/pkg/estabcache"
-	"github.com/Lookyan/netra/pkg/protocol"
+	"github.com/Lookyan/netramesh/pkg/estabcache"
+	"github.com/Lookyan/netramesh/pkg/protocol"
 
 	"github.com/opentracing/opentracing-go"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
