@@ -12,12 +12,10 @@ import (
 )
 
 type HTTPHandler struct {
-
 }
 
 func NewHTTPHandler() *HTTPHandler {
-	return &HTTPHandler{
-	}
+	return &HTTPHandler{}
 }
 
 func (h *HTTPHandler) HandleRequest(pr *io.PipeReader, pw *io.PipeWriter, netRequest NetRequest) {
@@ -87,8 +85,7 @@ type NetHTTPRequest struct {
 }
 
 func NewNetHTTPRequest() *NetHTTPRequest {
-	return &NetHTTPRequest{
-	}
+	return &NetHTTPRequest{}
 }
 
 func (nr *NetHTTPRequest) StartRequest() {
@@ -108,6 +105,17 @@ func (nr *NetHTTPRequest) StopRequest() {
 		log.Printf("HTTP request latency: %d", nr.lastDuration)
 		if nr.span != nil {
 			nr.span.SetOperationName(nr.httpRequest.Host + nr.httpRequest.URL.Path)
+			carrier := opentracing.HTTPHeadersCarrier(nr.httpRequest.Header)
+			wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
+			if err != nil {
+				log.Printf("Carrier extract error: %s", err.Error())
+			} else {
+				err = nr.span.Tracer().Inject(wireContext, opentracing.HTTPHeaders, carrier)
+				if err != nil {
+					log.Printf("Carrier inject error: %s", err.Error())
+				}
+			}
+
 			nr.span.SetTag("http.host", nr.httpRequest.Host)
 			nr.span.SetTag("http.path", nr.httpRequest.URL.String())
 			nr.span.SetTag("http.request_size", nr.requestSize)

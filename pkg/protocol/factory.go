@@ -1,6 +1,5 @@
 package protocol
 
-
 func GetNetworkHandler(proto Proto) NetHandler {
 	switch proto {
 	case HTTPProto:

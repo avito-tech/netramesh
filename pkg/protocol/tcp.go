@@ -9,8 +9,7 @@ type TCPHandler struct {
 }
 
 func NewTCPHandler() *TCPHandler {
-	return &TCPHandler{
-	}
+	return &TCPHandler{}
 }
 
 func (h *TCPHandler) HandleRequest(pr *io.PipeReader, pw *io.PipeWriter, netRequest NetRequest) {
@@ -29,8 +28,7 @@ type NetTCPRequest struct {
 }
 
 func NewNetTCPRequest() *NetTCPRequest {
-	return &NetTCPRequest{
-	}
+	return &NetTCPRequest{}
 }
 
 func (r *NetTCPRequest) StartRequest() {
