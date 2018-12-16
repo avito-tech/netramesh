@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/uber/jaeger-client-go"
 	"io"
 	"log"
 	"net"
@@ -52,7 +53,7 @@ func tcpCopy(
 	buf := bufferPool.Get().([]byte)
 	written, err := io.CopyBuffer(w, teeStreamReader, buf)
 	bufferPool.Put(buf)
-	log.Printf("TCP connection Duration: %s", time.Since(startD).String())
+	log.Printf("TCP connection Duration: %s (initiator: %t)", time.Since(startD).String(), initiator)
 	pw.Close()
 
 	log.Printf("Written: %d", written)
@@ -68,6 +69,8 @@ func handleConnection(conn *net.TCPConn, ec *estabcache.EstablishedCache) {
 	}
 	defer func() {
 		log.Print("Closing src conn")
+		conn.CloseRead()
+		conn.CloseWrite()
 		conn.Close()
 		log.Print("Closed src conn")
 	}()
@@ -79,6 +82,10 @@ func handleConnection(conn *net.TCPConn, ec *estabcache.EstablishedCache) {
 		return
 	}
 	defer f.Close()
+	err = syscall.SetNonblock(int(f.Fd()), true)
+	if err != nil {
+		log.Print("Can't turn fd into non-blocking mode")
+	}
 
 	addr, err := syscall.GetsockoptIPv6Mreq(int(f.Fd()), syscall.IPPROTO_IP, SO_ORIGINAL_DST)
 	if err != nil {
@@ -151,6 +158,9 @@ func main() {
 		// parsing errors might happen here, such as when we get a string where we expect a number
 		log.Printf("Could not parse Jaeger env vars: %s", err.Error())
 		return
+	}
+	if cfg.Headers == nil {
+		cfg.Headers = &jaeger.HeadersConfig{TraceContextHeaderName: "X-Request-Id"}
 	}
 	tracer, closer, err := cfg.NewTracer()
 	if err != nil {

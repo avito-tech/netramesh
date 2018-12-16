@@ -6,7 +6,7 @@ type Proto string
 
 const (
 	HTTPProto Proto = "http"
-	TCPProto Proto = "tcp"
+	TCPProto  Proto = "tcp"
 )
 
 func Determine(addr string) Proto {

@@ -1,5 +1,5 @@
 # NetraMesh
-Transparent TCP proxy for microservices with original destination retrieval.
+Transparent TCP proxy for microservices with original destination retrieval (Service Mesh approach).
 
 
 ## Usage
@@ -9,12 +9,9 @@ TODO
 ```
 
 ## Supported application level protocols
-- HTTP/1.1
+- HTTP/1.1 and lower
 
-Also it supports all TCP proto traffic.
-
-## Not supported
-- HTTP/1.0
+Also it supports any TCP proto traffic (proxies it transparently).
 
 ## How it works
 TODO:
