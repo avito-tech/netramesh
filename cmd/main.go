@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/uber/jaeger-client-go"
 	"io"
 	"log"
 	"net"
@@ -16,11 +15,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
+	"github.com/uber/jaeger-client-go"
+	jaegercfg "github.com/uber/jaeger-client-go/config"
+
 	"github.com/Lookyan/netramesh/pkg/estabcache"
 	"github.com/Lookyan/netramesh/pkg/protocol"
-
-	"github.com/opentracing/opentracing-go"
-	jaegercfg "github.com/uber/jaeger-client-go/config"
 )
 
 const SO_ORIGINAL_DST = 80
@@ -69,6 +69,8 @@ func handleConnection(conn *net.TCPConn, ec *estabcache.EstablishedCache) {
 	}
 	defer func() {
 		log.Print("Closing src conn")
+		// Important to close read operations
+		// to avoid waiting for never ending read operation when client doesn't close connection
 		conn.CloseRead()
 		conn.CloseWrite()
 		conn.Close()
