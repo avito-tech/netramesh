@@ -1,9 +1,11 @@
 package protocol
 
-func GetNetworkHandler(proto Proto) NetHandler {
+import "sync"
+
+func GetNetworkHandler(proto Proto, tracingContextMapping sync.Map) NetHandler {
 	switch proto {
 	case HTTPProto:
-		return NewHTTPHandler()
+		return NewHTTPHandler(tracingContextMapping)
 	case TCPProto:
 		return NewTCPHandler()
 	default:

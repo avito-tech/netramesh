@@ -2,7 +2,7 @@ package protocol
 
 import (
 	"io"
-	"io/ioutil"
+	"log"
 )
 
 type TCPHandler struct {
@@ -12,16 +12,24 @@ func NewTCPHandler() *TCPHandler {
 	return &TCPHandler{}
 }
 
-func (h *TCPHandler) HandleRequest(pr *io.PipeReader, pw *io.PipeWriter, netRequest NetRequest) {
-	defer pr.Close()
-	defer pw.Close()
-	io.Copy(ioutil.Discard, pr)
+func (h *TCPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInBoundConn bool) {
+	buf := bufferPool.Get().([]byte)
+	written, err := io.CopyBuffer(w, r, buf)
+	bufferPool.Put(buf)
+	log.Printf("Written: %d", written)
+	if err != nil {
+		log.Printf("Err CopyBuffer: %s", err.Error())
+	}
 }
 
-func (h *TCPHandler) HandleResponse(pr *io.PipeReader, pw *io.PipeWriter, netRequest NetRequest) {
-	defer pr.Close()
-	defer pw.Close()
-	io.Copy(ioutil.Discard, pr)
+func (h *TCPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInBoundConn bool) {
+	buf := bufferPool.Get().([]byte)
+	written, err := io.CopyBuffer(w, r, buf)
+	bufferPool.Put(buf)
+	log.Printf("Written: %d", written)
+	if err != nil {
+		log.Printf("Err CopyBuffer: %s", err.Error())
+	}
 }
 
 type NetTCPRequest struct {

@@ -2,142 +2,195 @@ package protocol
 
 import (
 	"bufio"
+	"container/list"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"time"
+	"sync"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/uber/jaeger-client-go"
 )
 
 type HTTPHandler struct {
+	tracingContextMapping sync.Map
 }
 
-func NewHTTPHandler() *HTTPHandler {
-	return &HTTPHandler{}
-}
-
-func (h *HTTPHandler) HandleRequest(pr *io.PipeReader, pw *io.PipeWriter, netRequest NetRequest) {
-	defer pr.Close()
-	defer pw.Close()
-	netHTTPRequest := netRequest.(*NetHTTPRequest)
-	for {
-		netHTTPRequest.StartRequest()
-		bufioHTTPReader := bufio.NewReader(pr)
-
-		var r *http.Request
-		r, err := http.ReadRequest(bufioHTTPReader)
-		log.Printf("%#v \n", r)
-		if err == io.EOF {
-			log.Print("EOF while parsing request HTTP")
-			return
-		}
-		if err != nil {
-			log.Printf("Error while parsing http '%s'", err.Error())
-			io.Copy(ioutil.Discard, bufioHTTPReader)
-			return
-		}
-		if r.Body != http.NoBody {
-			n, _ := io.Copy(ioutil.Discard, r.Body)
-			netHTTPRequest.requestSize = n
-			r.Body.Close()
-		}
-		netHTTPRequest.SetHTTPRequest(r)
+func NewHTTPHandler(tracingContextMapping sync.Map) *HTTPHandler {
+	return &HTTPHandler{
+		tracingContextMapping: tracingContextMapping,
 	}
 }
 
-func (h *HTTPHandler) HandleResponse(pr *io.PipeReader, pw *io.PipeWriter, netRequest NetRequest) {
-	defer pr.Close()
-	defer pw.Close()
+func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInBoundConn bool) {
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
+	bufioHTTPReader := bufio.NewReader(r)
 	for {
-		bufioHTTPReader := bufio.NewReader(pr)
-		r, err := http.ReadResponse(bufioHTTPReader, nil)
+		if !isInBoundConn {
+			netHTTPRequest.StartRequest()
+		}
+		req, err := http.ReadRequest(bufioHTTPReader)
 		if err == io.EOF {
 			log.Print("EOF while parsing request HTTP")
 			return
 		}
 		if err != nil {
-			log.Printf("Error while parsing response: %s", err.Error())
-			io.Copy(ioutil.Discard, bufioHTTPReader)
+			// TODO: fallback to tcp proxy
+			log.Printf("Error while parsing http request '%s'", err.Error())
+			io.Copy(w, bufioHTTPReader)
 			return
 		}
-		log.Printf("Response: %#v", r)
-		if r.Body != http.NoBody {
-			n, _ := io.Copy(ioutil.Discard, r.Body)
-			netHTTPRequest.responseSize = n
-			r.Body.Close()
+
+		if isInBoundConn {
+			if req.Header.Get("x-request-id") != "" {
+
+			} else {
+				req.Header["X-Request-Id"] = []string{"uuid4"}
+			}
+			h.tracingContextMapping.Store(req.Header.Get("x-request-id"), true)
+		} else {
+
 		}
-		netHTTPRequest.SetHTTPResponse(r)
+
+		if req.Header.Get(jaeger.TraceContextHeaderName) == "" {
+			req.Header[jaeger.TraceContextHeaderName] = []string{"123:123:123:123"}
+		}
+
+		// write the same request to writer
+		err = req.Write(w)
+		if err != nil {
+			log.Printf("Error while writing request to w: %s", err.Error())
+		}
+
+		if !isInBoundConn {
+			netHTTPRequest.SetHTTPRequest(req)
+		}
+	}
+}
+
+func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInBoundConn bool) {
+	netHTTPRequest := netRequest.(*NetHTTPRequest)
+	bufioHTTPReader := bufio.NewReader(r)
+	for {
+		resp, err := http.ReadResponse(bufioHTTPReader, nil)
+		if err == io.EOF {
+			log.Print("EOF while parsing request HTTP")
+			netHTTPRequest.StopRequest()
+			return
+		}
+		if err != nil {
+			// TODO: fallback to tcp proxy
+			log.Printf("Error while parsing http response: %s", err.Error())
+			io.Copy(w, bufioHTTPReader)
+			netHTTPRequest.StopRequest()
+			return
+		}
+
+		// write the same response to w
+		err = resp.Write(w)
+		if err != nil {
+			log.Printf("Error while writing response to w: %s", err.Error())
+		}
+
+		netHTTPRequest.SetHTTPResponse(resp)
 		netHTTPRequest.StopRequest()
 	}
 }
 
 type NetHTTPRequest struct {
-	requestTime  time.Time
-	lastDuration time.Duration
-	httpRequest  *http.Request
-	httpResponse *http.Response
-	requestSize  int64
-	responseSize int64
-	span         opentracing.Span
+	httpRequests  *Queue
+	httpResponses *Queue
+	spans         *Queue
 }
 
 func NewNetHTTPRequest() *NetHTTPRequest {
-	return &NetHTTPRequest{}
+	return &NetHTTPRequest{
+		httpRequests:  NewQueue(),
+		httpResponses: NewQueue(),
+		spans:         NewQueue(),
+	}
 }
 
 func (nr *NetHTTPRequest) StartRequest() {
-	nr.requestTime = time.Now()
-	nr.span = opentracing.StartSpan(
+	nr.spans.Push(opentracing.StartSpan(
 		"netra-span", // sets temporarily
-	)
+	))
 }
 
 func (nr *NetHTTPRequest) StopRequest() {
-	nr.lastDuration = time.Since(nr.requestTime)
-	if nr.httpRequest != nil {
+	request := nr.httpRequests.Pop()
+	response := nr.httpResponses.Pop()
+	if request != nil && response != nil {
+		httpRequest := request.(*http.Request)
+		httpResponse := response.(*http.Response)
 		log.Printf("Method: %s Host: %s",
-			nr.httpRequest.Method,
-			nr.httpRequest.Host,
+			httpRequest.Method,
+			httpRequest.Host,
 		)
-		log.Printf("HTTP request latency: %d", nr.lastDuration)
-		if nr.span != nil {
-			nr.span.SetOperationName(nr.httpRequest.Host + nr.httpRequest.URL.Path)
-			carrier := opentracing.HTTPHeadersCarrier(nr.httpRequest.Header)
+		span := nr.spans.Pop()
+		if span != nil {
+			requestSpan := span.(opentracing.Span)
+			requestSpan.SetOperationName(httpRequest.Host + httpRequest.URL.Path)
+			carrier := opentracing.HTTPHeadersCarrier(httpRequest.Header)
 			wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
 			if err != nil {
 				log.Printf("Carrier extract error: %s", err.Error())
 			} else {
-				err = nr.span.Tracer().Inject(wireContext, opentracing.HTTPHeaders, carrier)
+				err = requestSpan.Tracer().Inject(wireContext, opentracing.HTTPHeaders, carrier)
 				if err != nil {
 					log.Printf("Carrier inject error: %s", err.Error())
 				}
 			}
 
-			nr.span.SetTag("http.host", nr.httpRequest.Host)
-			nr.span.SetTag("http.path", nr.httpRequest.URL.String())
-			nr.span.SetTag("http.request_size", nr.requestSize)
-			nr.span.SetTag("http.response_size", nr.responseSize)
-			nr.span.SetTag("http.method", nr.httpRequest.Method)
-			nr.span.SetTag("http.status_code", nr.httpResponse.StatusCode)
-			nr.span.SetTag("span.kind", "client")
-			if userAgent := nr.httpRequest.Header.Get("User-Agent"); userAgent != "" {
-				nr.span.SetTag("http.user_agent", userAgent)
+			requestSpan.SetTag("http.host", httpRequest.Host)
+			requestSpan.SetTag("http.path", httpRequest.URL.String())
+			requestSpan.SetTag("http.request_size", httpRequest.ContentLength)
+			requestSpan.SetTag("http.response_size", httpResponse.ContentLength)
+			requestSpan.SetTag("http.method", httpRequest.Method)
+			requestSpan.SetTag("http.status_code", httpResponse.StatusCode)
+			requestSpan.SetTag("span.kind", "client")
+			if userAgent := httpRequest.Header.Get("User-Agent"); userAgent != "" {
+				requestSpan.SetTag("http.user_agent", userAgent)
 			}
-			if requestID := nr.httpRequest.Header.Get("X-Request-ID"); requestID != "" {
-				nr.span.SetTag("http.request_id", requestID)
+			if requestID := httpRequest.Header.Get("X-Request-ID"); requestID != "" {
+				requestSpan.SetTag("http.request_id", requestID)
 			}
-			nr.span.Finish()
+			requestSpan.Finish()
 		}
 	}
 }
 
 func (nr *NetHTTPRequest) SetHTTPRequest(r *http.Request) {
-	nr.httpRequest = r
+	nr.httpRequests.Push(r)
 }
 
 func (nr *NetHTTPRequest) SetHTTPResponse(r *http.Response) {
-	nr.httpResponse = r
+	nr.httpResponses.Push(r)
+}
+
+// NewQueue creates new queue
+// TODO: make it thread-safe
+func NewQueue() *Queue {
+	return &Queue{
+		elements: list.New(),
+	}
+}
+
+// Queue implements queue data structure
+type Queue struct {
+	elements *list.List
+}
+
+// Push pushes element to the end of queue
+func (q *Queue) Push(value interface{}) {
+	q.elements.PushBack(value)
+}
+
+// Pop pops first element out of queue
+func (q *Queue) Pop() interface{} {
+	el := q.elements.Front()
+	if el == nil {
+		return nil
+	}
+	return q.elements.Remove(el)
 }
