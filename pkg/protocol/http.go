@@ -17,12 +17,6 @@ type HTTPHandler struct {
 	tracingContextMapping *sync.Map
 }
 
-type TracingInfo struct {
-	OperationName string
-	TraceID       jaeger.TraceID
-	SpanID        jaeger.SpanID
-}
-
 func NewHTTPHandler(tracingContextMapping *sync.Map) *HTTPHandler {
 	return &HTTPHandler{
 		tracingContextMapping: tracingContextMapping,
@@ -131,22 +125,27 @@ func (nr *NetHTTPRequest) StartRequest() {
 	log.Printf("Extraction header value: %s", httpRequest.Header.Get(jaeger.TraceContextHeaderName))
 	wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
 
+	operation := httpRequest.URL.Path
+	if !nr.isInbound {
+		operation = httpRequest.Host + httpRequest.URL.Path
+	}
 	var span opentracing.Span
 	if err != nil {
 		log.Printf("Carrier extract error: %s", err.Error())
 		span = opentracing.StartSpan(
-			httpRequest.URL.Path,
+			operation,
 		)
 		if nr.isInbound {
 			context := span.Context().(jaeger.SpanContext)
 			nr.tracingContextMapping.Store(
 				httpRequest.Header.Get("x-request-id"),
 				context,
-				//TracingInfo{
-				//	OperationName: httpRequest.URL.Path,
-				//	TraceID:       context.TraceID(),
-				//	SpanID:        context.SpanID(),
-				//},
+			)
+		} else {
+			span.Tracer().Inject(
+				span.Context(),
+				opentracing.HTTPHeaders,
+				opentracing.HTTPHeadersCarrier(httpRequest.Header),
 			)
 		}
 	} else {
@@ -156,15 +155,10 @@ func (nr *NetHTTPRequest) StartRequest() {
 			nr.tracingContextMapping.Store(
 				httpRequest.Header.Get("x-request-id"),
 				context,
-				//TracingInfo{
-				//	OperationName: httpRequest.URL.Path,
-				//	TraceID:       context.TraceID(),
-				//	SpanID:        context.SpanID(),
-				//},
 			)
 		}
 		span = opentracing.StartSpan(
-			httpRequest.URL.Path,
+			operation,
 			opentracing.ChildOf(wireContext),
 		)
 	}
