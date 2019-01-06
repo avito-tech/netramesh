@@ -3,8 +3,10 @@ package protocol
 import (
 	"bufio"
 	"container/list"
+	"hash/fnv"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"sync"
 
@@ -13,22 +15,29 @@ import (
 )
 
 type HTTPHandler struct {
-	tracingContextMapping sync.Map
+	tracingContextMapping *sync.Map
 }
 
-func NewHTTPHandler(tracingContextMapping sync.Map) *HTTPHandler {
+type TracingInfo struct {
+	OperationName string
+	TraceID       jaeger.TraceID
+	SpanID        jaeger.SpanID
+}
+
+func NewHTTPHandler(tracingContextMapping *sync.Map) *HTTPHandler {
 	return &HTTPHandler{
 		tracingContextMapping: tracingContextMapping,
 	}
 }
 
-func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInBoundConn bool) {
+func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
+	netHTTPRequest.isInbound = isInboundConn
+	netHTTPRequest.tracingContextMapping = h.tracingContextMapping
 	bufioHTTPReader := bufio.NewReader(r)
 	for {
-		if !isInBoundConn {
-			netHTTPRequest.StartRequest()
-		}
+		netHTTPRequest.StartRequest()
+
 		req, err := http.ReadRequest(bufioHTTPReader)
 		if err == io.EOF {
 			log.Print("EOF while parsing request HTTP")
@@ -41,35 +50,80 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 			return
 		}
 
-		if isInBoundConn {
-			if req.Header.Get("x-request-id") != "" {
-
-			} else {
-				req.Header["X-Request-Id"] = []string{"uuid4"}
+		if isInboundConn {
+			// TODO: expose x-request-id key to sidecar config
+			if req.Header.Get("x-request-id") == "" {
+				req.Header["X-Request-Id"] = []string{"abcd"} // TODO: generate uuid4
 			}
-			h.tracingContextMapping.Store(req.Header.Get("x-request-id"), true)
+			if contextHeader := req.Header.Get(jaeger.TraceContextHeaderName); contextHeader != "" {
+				spanContext, err := jaeger.ContextFromString(contextHeader)
+				if err != nil {
+					log.Printf("Error (%s) while extracting spanContext in %s", err.Error(), contextHeader)
+				} else {
+					h.tracingContextMapping.Store(
+						req.Header.Get("x-request-id"),
+						TracingInfo{
+							OperationName: req.URL.Path,
+							TraceID:       spanContext.TraceID(),
+							SpanID:        jaeger.SpanID(rand.Uint64()),
+						},
+					)
+				}
+			} else {
+				hash := fnv.New64()
+				hash.Write([]byte(req.Header.Get("x-request-id")))
+				traceID := jaeger.TraceID{Low: hash.Sum64()}
+				spanID := jaeger.SpanID(rand.Uint64())
+				h.tracingContextMapping.Store(
+					req.Header.Get("x-request-id"),
+					TracingInfo{
+						OperationName: req.URL.Path,
+						TraceID:       traceID,
+						SpanID:        spanID,
+					},
+				)
+				spanContext := jaeger.NewSpanContext(
+					traceID,
+					spanID,
+					0,
+					false,
+					nil,
+				)
+				req.Header[jaeger.TraceContextHeaderName] = []string{spanContext.String()}
+				log.Printf("Inbound span: %s", spanContext.String())
+			}
 		} else {
-
+			// we need to generate context header and propagate it
+			tracingInfoByRequestID, ok := h.tracingContextMapping.Load(req.Header.Get("x-request-id"))
+			if ok {
+				log.Printf("Found request-id matching: %#v", tracingInfoByRequestID)
+				tracingInfo := tracingInfoByRequestID.(TracingInfo)
+				spanContext := jaeger.NewSpanContext(
+					tracingInfo.TraceID,
+					jaeger.SpanID(rand.Uint64()),
+					tracingInfo.SpanID,
+					false,
+					nil,
+				)
+				req.Header[jaeger.TraceContextHeaderName] = []string{spanContext.String()}
+				log.Printf("Outbound span: %s", spanContext.String())
+			}
 		}
 
-		if req.Header.Get(jaeger.TraceContextHeaderName) == "" {
-			req.Header[jaeger.TraceContextHeaderName] = []string{"123:123:123:123"}
-		}
+		netHTTPRequest.SetHTTPRequest(req)
 
 		// write the same request to writer
 		err = req.Write(w)
 		if err != nil {
 			log.Printf("Error while writing request to w: %s", err.Error())
 		}
-
-		if !isInBoundConn {
-			netHTTPRequest.SetHTTPRequest(req)
-		}
 	}
 }
 
-func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInBoundConn bool) {
+func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
+	netHTTPRequest.isInbound = isInboundConn
+	netHTTPRequest.tracingContextMapping = h.tracingContextMapping
 	bufioHTTPReader := bufio.NewReader(r)
 	for {
 		resp, err := http.ReadResponse(bufioHTTPReader, nil)
@@ -98,9 +152,11 @@ func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netReque
 }
 
 type NetHTTPRequest struct {
-	httpRequests  *Queue
-	httpResponses *Queue
-	spans         *Queue
+	httpRequests          *Queue
+	httpResponses         *Queue
+	spans                 *Queue
+	isInbound             bool
+	tracingContextMapping *sync.Map
 }
 
 func NewNetHTTPRequest() *NetHTTPRequest {
@@ -130,12 +186,15 @@ func (nr *NetHTTPRequest) StopRequest() {
 		span := nr.spans.Pop()
 		if span != nil {
 			requestSpan := span.(opentracing.Span)
-			requestSpan.SetOperationName(httpRequest.Host + httpRequest.URL.Path)
+			requestSpan.SetOperationName(httpRequest.URL.Path)
 			carrier := opentracing.HTTPHeadersCarrier(httpRequest.Header)
+			log.Printf("Extraction header value: %s", httpRequest.Header.Get(jaeger.TraceContextHeaderName))
 			wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
 			if err != nil {
 				log.Printf("Carrier extract error: %s", err.Error())
 			} else {
+				log.Printf("Wirecontext: %#v", wireContext)
+				//requestSpan = requestSpan.Tracer().StartSpan(httpRequest.URL.Path, opentracing.ChildOf(wireContext))
 				err = requestSpan.Tracer().Inject(wireContext, opentracing.HTTPHeaders, carrier)
 				if err != nil {
 					log.Printf("Carrier inject error: %s", err.Error())
@@ -148,7 +207,12 @@ func (nr *NetHTTPRequest) StopRequest() {
 			requestSpan.SetTag("http.response_size", httpResponse.ContentLength)
 			requestSpan.SetTag("http.method", httpRequest.Method)
 			requestSpan.SetTag("http.status_code", httpResponse.StatusCode)
-			requestSpan.SetTag("span.kind", "client")
+
+			if nr.isInbound {
+				requestSpan.SetTag("span.kind", "server")
+			} else {
+				requestSpan.SetTag("span.kind", "client")
+			}
 			if userAgent := httpRequest.Header.Get("User-Agent"); userAgent != "" {
 				requestSpan.SetTag("http.user_agent", userAgent)
 			}
@@ -169,7 +233,6 @@ func (nr *NetHTTPRequest) SetHTTPResponse(r *http.Response) {
 }
 
 // NewQueue creates new queue
-// TODO: make it thread-safe
 func NewQueue() *Queue {
 	return &Queue{
 		elements: list.New(),
@@ -178,16 +241,21 @@ func NewQueue() *Queue {
 
 // Queue implements queue data structure
 type Queue struct {
+	mu       sync.Mutex
 	elements *list.List
 }
 
 // Push pushes element to the end of queue
 func (q *Queue) Push(value interface{}) {
+	q.mu.Lock()
 	q.elements.PushBack(value)
+	q.mu.Unlock()
 }
 
 // Pop pops first element out of queue
 func (q *Queue) Pop() interface{} {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	el := q.elements.Front()
 	if el == nil {
 		return nil

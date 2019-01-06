@@ -44,7 +44,7 @@ func tcpCopy(
 	done <- struct{}{}
 }
 
-func handleConnection(conn *net.TCPConn, ec *estabcache.EstablishedCache, tracingContextMapping sync.Map) {
+func handleConnection(conn *net.TCPConn, ec *estabcache.EstablishedCache, tracingContextMapping *sync.Map) {
 	if conn == nil {
 		return
 	}
@@ -175,7 +175,7 @@ func main() {
 		}
 	}()
 
-	tracingContextMapping := sync.Map{}
+	tracingContextMapping := &sync.Map{}
 
 	for {
 		conn, err := ln.AcceptTCP()

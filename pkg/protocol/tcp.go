@@ -12,7 +12,7 @@ func NewTCPHandler() *TCPHandler {
 	return &TCPHandler{}
 }
 
-func (h *TCPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInBoundConn bool) {
+func (h *TCPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
 	buf := bufferPool.Get().([]byte)
 	written, err := io.CopyBuffer(w, r, buf)
 	bufferPool.Put(buf)
@@ -22,7 +22,7 @@ func (h *TCPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest
 	}
 }
 
-func (h *TCPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInBoundConn bool) {
+func (h *TCPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
 	buf := bufferPool.Get().([]byte)
 	written, err := io.CopyBuffer(w, r, buf)
 	bufferPool.Put(buf)

@@ -2,7 +2,7 @@ package protocol
 
 import "sync"
 
-func GetNetworkHandler(proto Proto, tracingContextMapping sync.Map) NetHandler {
+func GetNetworkHandler(proto Proto, tracingContextMapping *sync.Map) NetHandler {
 	switch proto {
 	case HTTPProto:
 		return NewHTTPHandler(tracingContextMapping)
