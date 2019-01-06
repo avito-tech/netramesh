@@ -3,10 +3,8 @@ package protocol
 import (
 	"bufio"
 	"container/list"
-	"hash/fnv"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"sync"
 
@@ -36,8 +34,6 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 	netHTTPRequest.tracingContextMapping = h.tracingContextMapping
 	bufioHTTPReader := bufio.NewReader(r)
 	for {
-		netHTTPRequest.StartRequest()
-
 		req, err := http.ReadRequest(bufioHTTPReader)
 		if err == io.EOF {
 			log.Print("EOF while parsing request HTTP")
@@ -50,67 +46,69 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 			return
 		}
 
+		// TODO: expose x-request-id key to sidecar config
+		if req.Header.Get("x-request-id") == "" {
+			req.Header["X-Request-Id"] = []string{"abcd"} // TODO: generate uuid4
+		}
+
 		if isInboundConn {
-			// TODO: expose x-request-id key to sidecar config
-			if req.Header.Get("x-request-id") == "" {
-				req.Header["X-Request-Id"] = []string{"abcd"} // TODO: generate uuid4
-			}
-			if contextHeader := req.Header.Get(jaeger.TraceContextHeaderName); contextHeader != "" {
-				spanContext, err := jaeger.ContextFromString(contextHeader)
-				if err != nil {
-					log.Printf("Error (%s) while extracting spanContext in %s", err.Error(), contextHeader)
-				} else {
-					h.tracingContextMapping.Store(
-						req.Header.Get("x-request-id"),
-						TracingInfo{
-							OperationName: req.URL.Path,
-							TraceID:       spanContext.TraceID(),
-							SpanID:        jaeger.SpanID(rand.Uint64()),
-						},
-					)
-				}
-			} else {
-				hash := fnv.New64()
-				hash.Write([]byte(req.Header.Get("x-request-id")))
-				traceID := jaeger.TraceID{Low: hash.Sum64()}
-				spanID := jaeger.SpanID(rand.Uint64())
-				h.tracingContextMapping.Store(
-					req.Header.Get("x-request-id"),
-					TracingInfo{
-						OperationName: req.URL.Path,
-						TraceID:       traceID,
-						SpanID:        spanID,
-					},
-				)
-				spanContext := jaeger.NewSpanContext(
-					traceID,
-					spanID,
-					0,
-					false,
-					nil,
-				)
-				req.Header[jaeger.TraceContextHeaderName] = []string{spanContext.String()}
-				log.Printf("Inbound span: %s", spanContext.String())
-			}
+			//if contextHeader := req.Header.Get(jaeger.TraceContextHeaderName); contextHeader != "" {
+			//	spanContext, err := jaeger.ContextFromString(contextHeader)
+			//	if err != nil {
+			//		log.Printf("Error (%s) while extracting spanContext in %s", err.Error(), contextHeader)
+			//	} else {
+			//		h.tracingContextMapping.Store(
+			//			req.Header.Get("x-request-id"),
+			//			TracingInfo{
+			//				OperationName: req.URL.Path,
+			//				TraceID:       spanContext.TraceID(),
+			//				SpanID:        jaeger.SpanID(rand.Uint64()),
+			//			},
+			//		)
+			//	}
+			//} else {
+			//	hash := fnv.New64()
+			//	hash.Write([]byte(req.Header.Get("x-request-id")))
+			//	traceID := jaeger.TraceID{Low: hash.Sum64()}
+			//	spanID := jaeger.SpanID(rand.Uint64())
+			//	h.tracingContextMapping.Store(
+			//		req.Header.Get("x-request-id"),
+			//		TracingInfo{
+			//			OperationName: req.URL.Path,
+			//			TraceID:       traceID,
+			//			SpanID:        spanID,
+			//		},
+			//	)
+			//	spanContext := jaeger.NewSpanContext(
+			//		traceID,
+			//		spanID,
+			//		0,
+			//		false,
+			//		nil,
+			//	)
+			//	//req.Header[jaeger.TraceContextHeaderName] = []string{spanContext.String()}
+			//	log.Printf("Inbound span: %s", spanContext.String())
+			//}
 		} else {
 			// we need to generate context header and propagate it
 			tracingInfoByRequestID, ok := h.tracingContextMapping.Load(req.Header.Get("x-request-id"))
 			if ok {
 				log.Printf("Found request-id matching: %#v", tracingInfoByRequestID)
-				tracingInfo := tracingInfoByRequestID.(TracingInfo)
-				spanContext := jaeger.NewSpanContext(
-					tracingInfo.TraceID,
-					jaeger.SpanID(rand.Uint64()),
-					tracingInfo.SpanID,
-					false,
-					nil,
-				)
-				req.Header[jaeger.TraceContextHeaderName] = []string{spanContext.String()}
-				log.Printf("Outbound span: %s", spanContext.String())
+				tracingContext := tracingInfoByRequestID.(jaeger.SpanContext)
+				//spanContext := jaeger.NewSpanContext(
+				//	tracingInfo.TraceID,
+				//	jaeger.SpanID(rand.Uint64()),
+				//	tracingInfo.SpanID,
+				//	false,
+				//	nil,
+				//)
+				req.Header[jaeger.TraceContextHeaderName] = []string{tracingContext.String()}
+				log.Printf("Outbound span: %s", tracingContext.String())
 			}
 		}
 
 		netHTTPRequest.SetHTTPRequest(req)
+		netHTTPRequest.StartRequest()
 
 		// write the same request to writer
 		err = req.Write(w)
@@ -168,9 +166,54 @@ func NewNetHTTPRequest() *NetHTTPRequest {
 }
 
 func (nr *NetHTTPRequest) StartRequest() {
-	nr.spans.Push(opentracing.StartSpan(
-		"netra-span", // sets temporarily
-	))
+	request := nr.httpRequests.Peek()
+	if request == nil {
+		return
+	}
+	httpRequest := request.(*http.Request)
+	carrier := opentracing.HTTPHeadersCarrier(httpRequest.Header)
+	log.Printf("Extraction header value: %s", httpRequest.Header.Get(jaeger.TraceContextHeaderName))
+	wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
+
+	var span opentracing.Span
+	if err != nil {
+		log.Printf("Carrier extract error: %s", err.Error())
+		span = opentracing.StartSpan(
+			httpRequest.URL.Path,
+		)
+		if nr.isInbound {
+			context := span.Context().(jaeger.SpanContext)
+			nr.tracingContextMapping.Store(
+				httpRequest.Header.Get("x-request-id"),
+				context,
+				//TracingInfo{
+				//	OperationName: httpRequest.URL.Path,
+				//	TraceID:       context.TraceID(),
+				//	SpanID:        context.SpanID(),
+				//},
+			)
+		}
+	} else {
+		log.Printf("Wirecontext: %#v", wireContext)
+		if nr.isInbound {
+			context := wireContext.(jaeger.SpanContext)
+			nr.tracingContextMapping.Store(
+				httpRequest.Header.Get("x-request-id"),
+				context,
+				//TracingInfo{
+				//	OperationName: httpRequest.URL.Path,
+				//	TraceID:       context.TraceID(),
+				//	SpanID:        context.SpanID(),
+				//},
+			)
+		}
+		span = opentracing.StartSpan(
+			httpRequest.URL.Path,
+			opentracing.ChildOf(wireContext),
+		)
+	}
+
+	nr.spans.Push(span)
 }
 
 func (nr *NetHTTPRequest) StopRequest() {
@@ -186,20 +229,6 @@ func (nr *NetHTTPRequest) StopRequest() {
 		span := nr.spans.Pop()
 		if span != nil {
 			requestSpan := span.(opentracing.Span)
-			requestSpan.SetOperationName(httpRequest.URL.Path)
-			carrier := opentracing.HTTPHeadersCarrier(httpRequest.Header)
-			log.Printf("Extraction header value: %s", httpRequest.Header.Get(jaeger.TraceContextHeaderName))
-			wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
-			if err != nil {
-				log.Printf("Carrier extract error: %s", err.Error())
-			} else {
-				log.Printf("Wirecontext: %#v", wireContext)
-				//requestSpan = requestSpan.Tracer().StartSpan(httpRequest.URL.Path, opentracing.ChildOf(wireContext))
-				err = requestSpan.Tracer().Inject(wireContext, opentracing.HTTPHeaders, carrier)
-				if err != nil {
-					log.Printf("Carrier inject error: %s", err.Error())
-				}
-			}
 
 			requestSpan.SetTag("http.host", httpRequest.Host)
 			requestSpan.SetTag("http.path", httpRequest.URL.String())
@@ -261,4 +290,15 @@ func (q *Queue) Pop() interface{} {
 		return nil
 	}
 	return q.elements.Remove(el)
+}
+
+// Peek returns first element in the queue without removing it
+func (q *Queue) Peek() interface{} {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if el := q.elements.Front(); el != nil {
+		return el.Value
+	} else {
+		return nil
+	}
 }
