@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go"
 )
@@ -48,60 +49,15 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 
 		// TODO: expose x-request-id key to sidecar config
 		if req.Header.Get("x-request-id") == "" {
-			req.Header["X-Request-Id"] = []string{"abcd"} // TODO: generate uuid4
+			req.Header["X-Request-Id"] = []string{uuid.New().String()}
 		}
 
-		if isInboundConn {
-			//if contextHeader := req.Header.Get(jaeger.TraceContextHeaderName); contextHeader != "" {
-			//	spanContext, err := jaeger.ContextFromString(contextHeader)
-			//	if err != nil {
-			//		log.Printf("Error (%s) while extracting spanContext in %s", err.Error(), contextHeader)
-			//	} else {
-			//		h.tracingContextMapping.Store(
-			//			req.Header.Get("x-request-id"),
-			//			TracingInfo{
-			//				OperationName: req.URL.Path,
-			//				TraceID:       spanContext.TraceID(),
-			//				SpanID:        jaeger.SpanID(rand.Uint64()),
-			//			},
-			//		)
-			//	}
-			//} else {
-			//	hash := fnv.New64()
-			//	hash.Write([]byte(req.Header.Get("x-request-id")))
-			//	traceID := jaeger.TraceID{Low: hash.Sum64()}
-			//	spanID := jaeger.SpanID(rand.Uint64())
-			//	h.tracingContextMapping.Store(
-			//		req.Header.Get("x-request-id"),
-			//		TracingInfo{
-			//			OperationName: req.URL.Path,
-			//			TraceID:       traceID,
-			//			SpanID:        spanID,
-			//		},
-			//	)
-			//	spanContext := jaeger.NewSpanContext(
-			//		traceID,
-			//		spanID,
-			//		0,
-			//		false,
-			//		nil,
-			//	)
-			//	//req.Header[jaeger.TraceContextHeaderName] = []string{spanContext.String()}
-			//	log.Printf("Inbound span: %s", spanContext.String())
-			//}
-		} else {
+		if !isInboundConn {
 			// we need to generate context header and propagate it
 			tracingInfoByRequestID, ok := h.tracingContextMapping.Load(req.Header.Get("x-request-id"))
 			if ok {
 				log.Printf("Found request-id matching: %#v", tracingInfoByRequestID)
 				tracingContext := tracingInfoByRequestID.(jaeger.SpanContext)
-				//spanContext := jaeger.NewSpanContext(
-				//	tracingInfo.TraceID,
-				//	jaeger.SpanID(rand.Uint64()),
-				//	tracingInfo.SpanID,
-				//	false,
-				//	nil,
-				//)
 				req.Header[jaeger.TraceContextHeaderName] = []string{tracingContext.String()}
 				log.Printf("Outbound span: %s", tracingContext.String())
 			}
