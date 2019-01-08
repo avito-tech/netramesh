@@ -1,9 +1,13 @@
 package protocol
 
-func GetNetworkHandler(proto Proto) NetHandler {
+import (
+	"github.com/patrickmn/go-cache"
+)
+
+func GetNetworkHandler(proto Proto, tracingContextMapping *cache.Cache) NetHandler {
 	switch proto {
 	case HTTPProto:
-		return NewHTTPHandler()
+		return NewHTTPHandler(tracingContextMapping)
 	case TCPProto:
 		return NewTCPHandler()
 	default:
