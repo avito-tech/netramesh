@@ -1,3 +1,6 @@
+# 0.0.3
+- Added X-Request-id header detection and tracing span context propagation.
+
 # 0.0.2
 - Fixed read deadlock when client doesn't close connection by itself. Now it supports HTTP/1.0 proto.
 
