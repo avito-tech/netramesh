@@ -1,8 +1,10 @@
 package protocol
 
-import "sync"
+import (
+	"github.com/patrickmn/go-cache"
+)
 
-func GetNetworkHandler(proto Proto, tracingContextMapping *sync.Map) NetHandler {
+func GetNetworkHandler(proto Proto, tracingContextMapping *cache.Cache) NetHandler {
 	switch proto {
 	case HTTPProto:
 		return NewHTTPHandler(tracingContextMapping)

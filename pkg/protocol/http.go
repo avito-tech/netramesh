@@ -10,14 +10,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
+	"github.com/patrickmn/go-cache"
 	"github.com/uber/jaeger-client-go"
 )
 
 type HTTPHandler struct {
-	tracingContextMapping *sync.Map
+	tracingContextMapping *cache.Cache
 }
 
-func NewHTTPHandler(tracingContextMapping *sync.Map) *HTTPHandler {
+func NewHTTPHandler(tracingContextMapping *cache.Cache) *HTTPHandler {
 	return &HTTPHandler{
 		tracingContextMapping: tracingContextMapping,
 	}
@@ -48,7 +49,7 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 
 		if !isInboundConn {
 			// we need to generate context header and propagate it
-			tracingInfoByRequestID, ok := h.tracingContextMapping.Load(req.Header.Get("x-request-id"))
+			tracingInfoByRequestID, ok := h.tracingContextMapping.Get(req.Header.Get("x-request-id"))
 			if ok {
 				log.Printf("Found request-id matching: %#v", tracingInfoByRequestID)
 				tracingContext := tracingInfoByRequestID.(jaeger.SpanContext)
@@ -104,7 +105,7 @@ type NetHTTPRequest struct {
 	httpResponses         *Queue
 	spans                 *Queue
 	isInbound             bool
-	tracingContextMapping *sync.Map
+	tracingContextMapping *cache.Cache
 }
 
 func NewNetHTTPRequest() *NetHTTPRequest {
@@ -137,7 +138,7 @@ func (nr *NetHTTPRequest) StartRequest() {
 		)
 		if nr.isInbound {
 			context := span.Context().(jaeger.SpanContext)
-			nr.tracingContextMapping.Store(
+			nr.tracingContextMapping.SetDefault(
 				httpRequest.Header.Get("x-request-id"),
 				context,
 			)
@@ -152,7 +153,7 @@ func (nr *NetHTTPRequest) StartRequest() {
 		log.Printf("Wirecontext: %#v", wireContext)
 		if nr.isInbound {
 			context := wireContext.(jaeger.SpanContext)
-			nr.tracingContextMapping.Store(
+			nr.tracingContextMapping.SetDefault(
 				httpRequest.Header.Get("x-request-id"),
 				context,
 			)

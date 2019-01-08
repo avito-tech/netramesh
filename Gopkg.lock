@@ -30,6 +30,14 @@
   version = "v1.0.2"
 
 [[projects]]
+  digest = "1:808cdddf087fb64baeae67b8dfaee2069034d9704923a3cb8bd96a995421a625"
+  name = "github.com/patrickmn/go-cache"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "a3647f8e31d79543b2d0f0ae2fe5c379d72cedc0"
+  version = "v2.1.0"
+
+[[projects]]
   digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
   name = "github.com/pkg/errors"
   packages = ["."]
@@ -85,6 +93,7 @@
   input-imports = [
     "github.com/google/uuid",
     "github.com/opentracing/opentracing-go",
+    "github.com/patrickmn/go-cache",
     "github.com/uber/jaeger-client-go",
     "github.com/uber/jaeger-client-go/config",
   ]
