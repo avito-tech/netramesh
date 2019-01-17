@@ -44,5 +44,6 @@ func (tw *TempWriter) Release() {
 // Close stub
 func (tw *TempWriter) Close() error {
 	tw.buf.Truncate(0)
+	tempWriterBufferPool.Put(tw.buf)
 	return nil
 }
