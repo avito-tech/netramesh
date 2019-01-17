@@ -28,7 +28,10 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
 	netHTTPRequest.isInbound = isInboundConn
 	netHTTPRequest.tracingContextMapping = h.tracingContextMapping
-	bufioHTTPReader := bufio.NewReader(r)
+
+	tmpWriter := NewTempWriter()
+	readerWithFallback := io.TeeReader(r, tmpWriter)
+	bufioHTTPReader := bufio.NewReader(readerWithFallback)
 	for {
 		req, err := http.ReadRequest(bufioHTTPReader)
 		if err == io.EOF {
@@ -36,12 +39,15 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 			return
 		}
 		if err != nil {
-			// TODO: fallback to tcp proxy
 			log.Printf("Error while parsing http request '%s'", err.Error())
+			io.Copy(w, tmpWriter)
 			io.Copy(w, bufioHTTPReader)
+			tmpWriter.Close()
 			return
 		}
 
+		tmpWriter.Release()
+		tmpWriter.Close()
 		// TODO: expose x-request-id key to sidecar config
 		if req.Header.Get("x-request-id") == "" {
 			req.Header["X-Request-Id"] = []string{uuid.New().String()}
@@ -73,7 +79,9 @@ func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netReque
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
 	netHTTPRequest.isInbound = isInboundConn
 	netHTTPRequest.tracingContextMapping = h.tracingContextMapping
-	bufioHTTPReader := bufio.NewReader(r)
+	tmpWriter := NewTempWriter()
+	readerWithFallback := io.TeeReader(r, tmpWriter)
+	bufioHTTPReader := bufio.NewReader(readerWithFallback)
 	for {
 		resp, err := http.ReadResponse(bufioHTTPReader, nil)
 		if err == io.EOF {
@@ -82,12 +90,16 @@ func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netReque
 			return
 		}
 		if err != nil {
-			// TODO: fallback to tcp proxy
 			log.Printf("Error while parsing http response: %s", err.Error())
+			io.Copy(w, tmpWriter)
 			io.Copy(w, bufioHTTPReader)
+			tmpWriter.Close()
 			netHTTPRequest.StopRequest()
 			return
 		}
+
+		tmpWriter.Release()
+		tmpWriter.Close()
 
 		// write the same response to w
 		err = resp.Write(w)
@@ -187,6 +199,10 @@ func (nr *NetHTTPRequest) StopRequest() {
 			requestSpan.SetTag("http.response_size", httpResponse.ContentLength)
 			requestSpan.SetTag("http.method", httpRequest.Method)
 			requestSpan.SetTag("http.status_code", httpResponse.StatusCode)
+
+			if httpResponse.StatusCode >= 500 {
+				requestSpan.SetTag("error", "true")
+			}
 
 			if nr.isInbound {
 				requestSpan.SetTag("span.kind", "server")
