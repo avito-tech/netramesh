@@ -1,3 +1,6 @@
+# 0.0.4
+- Added TCP fallback when we can't handle http protocol parsing.
+
 # 0.0.3
 - Added X-Request-id header detection and tracing span context propagation.
 
