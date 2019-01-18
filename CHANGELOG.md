@@ -1,3 +1,6 @@
+# 0.0.5
+- HTTP upgrade type fallback to TCP added
+
 # 0.0.4
 - Added TCP fallback when we can't handle http protocol parsing.
 
