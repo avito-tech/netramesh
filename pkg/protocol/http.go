@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -30,9 +31,11 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 	netHTTPRequest.tracingContextMapping = h.tracingContextMapping
 
 	tmpWriter := NewTempWriter()
+	defer tmpWriter.Close()
 	readerWithFallback := io.TeeReader(r, tmpWriter)
 	bufioHTTPReader := bufio.NewReader(readerWithFallback)
 	for {
+		tmpWriter.Start()
 		req, err := http.ReadRequest(bufioHTTPReader)
 		if err == io.EOF {
 			log.Print("EOF while parsing request HTTP")
@@ -40,14 +43,33 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 		}
 		if err != nil {
 			log.Printf("Error while parsing http request '%s'", err.Error())
-			io.Copy(w, tmpWriter)
-			io.Copy(w, bufioHTTPReader)
-			tmpWriter.Close()
+			_, err = io.Copy(w, tmpWriter)
+			if err != nil {
+				log.Print(err.Error())
+			}
+			tmpWriter.Stop()
+			_, err = io.Copy(w, bufioHTTPReader)
+			if err != nil {
+				log.Print(err.Error())
+			}
+			return
+		}
+		// avoid ws connections and other upgrade protos
+		if strings.ToLower(req.Header.Get("Connection")) == "upgrade" {
+			_, err = io.Copy(w, tmpWriter)
+			if err != nil {
+				log.Print(err.Error())
+			}
+			tmpWriter.Stop()
+			_, err = io.Copy(w, bufioHTTPReader)
+			if err != nil {
+				log.Print(err.Error())
+			}
 			return
 		}
 
-		tmpWriter.Release()
-		tmpWriter.Close()
+		tmpWriter.Stop()
+
 		// TODO: expose x-request-id key to sidecar config
 		if req.Header.Get("x-request-id") == "" {
 			req.Header["X-Request-Id"] = []string{uuid.New().String()}
@@ -79,27 +101,49 @@ func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netReque
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
 	netHTTPRequest.isInbound = isInboundConn
 	netHTTPRequest.tracingContextMapping = h.tracingContextMapping
+
 	tmpWriter := NewTempWriter()
+	defer tmpWriter.Close()
 	readerWithFallback := io.TeeReader(r, tmpWriter)
 	bufioHTTPReader := bufio.NewReader(readerWithFallback)
 	for {
+		tmpWriter.Start()
 		resp, err := http.ReadResponse(bufioHTTPReader, nil)
 		if err == io.EOF {
-			log.Print("EOF while parsing request HTTP")
+			log.Print("EOF while parsing response HTTP")
 			netHTTPRequest.StopRequest()
 			return
 		}
 		if err != nil {
 			log.Printf("Error while parsing http response: %s", err.Error())
-			io.Copy(w, tmpWriter)
-			io.Copy(w, bufioHTTPReader)
-			tmpWriter.Close()
+			_, err = io.Copy(w, tmpWriter)
+			if err != nil {
+				log.Print(err.Error())
+			}
+			tmpWriter.Stop()
+			_, err = io.Copy(w, bufioHTTPReader)
+			if err != nil {
+				log.Print(err.Error())
+			}
 			netHTTPRequest.StopRequest()
 			return
 		}
 
-		tmpWriter.Release()
-		tmpWriter.Close()
+		// avoid ws connections and other upgrade protos
+		if strings.ToLower(resp.Header.Get("Connection")) == "upgrade" {
+			_, err = io.Copy(w, tmpWriter)
+			if err != nil {
+				log.Print(err.Error())
+			}
+			tmpWriter.Stop()
+			_, err = io.Copy(w, bufioHTTPReader)
+			if err != nil {
+				log.Print(err.Error())
+			}
+			return
+		}
+
+		tmpWriter.Stop()
 
 		// write the same response to w
 		err = resp.Write(w)

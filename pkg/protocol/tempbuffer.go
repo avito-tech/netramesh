@@ -11,21 +11,21 @@ var tempWriterBufferPool = sync.Pool{
 
 // TempWriter allows write to temp buffer and retrieve it in case we need it
 type TempWriter struct {
-	released bool
-	buf      *bytes.Buffer
+	stopped bool
+	buf     *bytes.Buffer
 }
 
 // NewTempWriter creates new instance of TempWriter
 func NewTempWriter() *TempWriter {
 	return &TempWriter{
-		released: false,
-		buf:      tempWriterBufferPool.Get().(*bytes.Buffer),
+		stopped: false,
+		buf:     tempWriterBufferPool.Get().(*bytes.Buffer),
 	}
 }
 
 // Write writes bytes into temp buffer if it
 func (tw *TempWriter) Write(b []byte) (n int, err error) {
-	if !tw.released {
+	if !tw.stopped {
 		return tw.buf.Write(b)
 	}
 	return len(b), nil
@@ -36,9 +36,15 @@ func (tw *TempWriter) Read(p []byte) (n int, err error) {
 	return tw.buf.Read(p)
 }
 
-// Release releases writer from writing to cache
-func (tw *TempWriter) Release() {
-	tw.released = true
+// Stop releases writer from writing to cache
+func (tw *TempWriter) Stop() {
+	tw.stopped = true
+	tw.buf.Truncate(0)
+}
+
+// Start starts writing to temp buffer
+func (tw *TempWriter) Start() {
+	tw.stopped = false
 }
 
 // Close stub
