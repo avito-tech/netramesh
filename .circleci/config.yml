@@ -20,4 +20,4 @@ jobs:
          docker login -u $DOCKER_USER -p $DOCKER_PASS
 
       - run: docker build -t lookyan/netra-sidecar:$CIRCLE_BRANCH .
-      - run: docker build -t -f Dockerfile-init lookyan/netra-init:$CIRCLE_BRANCH .
+      - run: docker build -f Dockerfile-init -t lookyan/netra-init:$CIRCLE_BRANCH .
