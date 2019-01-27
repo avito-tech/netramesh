@@ -1,14 +1,13 @@
 # NetraMesh
 [![CircleCI](https://circleci.com/gh/Lookyan/netramesh/tree/master.svg?style=svg)](https://circleci.com/gh/Lookyan/netramesh/tree/master)
 
-Transparent TCP proxy for microservices with original destination retrieval (Service Mesh approach).
+Service mesh NetraMesh includes:
+- Transparent TCP proxy for microservices with original destination retrieval.
+- Init container for network rules configuration (iptables based).
 
+## Getting started
 
-## Usage
-
-```
-TODO
-```
+Check out [examples](./examples)
 
 ## Supported application level protocols
 - HTTP/1.1 and lower
@@ -16,4 +15,5 @@ TODO
 Also it supports any TCP proto traffic (proxies it transparently).
 
 ## How it works
-TODO:
+
+// in progress
