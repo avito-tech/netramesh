@@ -1,0 +1,16 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.11.2-stretch
+    working_directory: /go/src/github.com/Lookyan/netramesh
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run: |
+         docker login -u $DOCKER_USER -p $DOCKER_PASS
+
+      - run: docker build -t lookyan/netra-sidecar:$CIRCLE_BRANCH .
+      - run: docker build -f Dockerfile-init -t lookyan/netra-init:$CIRCLE_BRANCH .
+      - run: docker push lookyan/netra-sidecar:$CIRCLE_BRANCH
+      - run: docker push lookyan/netra-init:$CIRCLE_BRANCH
