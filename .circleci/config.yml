@@ -21,3 +21,5 @@ jobs:
 
       - run: docker build -t lookyan/netra-sidecar:$CIRCLE_BRANCH .
       - run: docker build -f Dockerfile-init -t lookyan/netra-init:$CIRCLE_BRANCH .
+      - run: docker push lookyan/netra-sidecar:$CIRCLE_BRANCH
+      - run: docker push lookyan/netra-init:$CIRCLE_BRANCH
