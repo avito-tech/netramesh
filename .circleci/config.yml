@@ -3,7 +3,7 @@ jobs:
   build:
     docker:
       - image: circleci/golang:1.11.2-stretch
-   working_directory: /go/src/github.com/Lookyan/netramesh
+    working_directory: /go/src/github.com/Lookyan/netramesh
     steps:
       - checkout
       - setup_remote_docker
