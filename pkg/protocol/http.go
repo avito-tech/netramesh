@@ -172,6 +172,10 @@ func NewNetHTTPRequest() *NetHTTPRequest {
 	}
 }
 
+// todo: move to come kind of runtime configuration
+var headersMap = map[string]string{"x-test-id": "testTag"}
+var cookiesMap = map[string]string{"testId": "testTag"}
+
 func (nr *NetHTTPRequest) StartRequest() {
 	request := nr.httpRequests.Peek()
 	if request == nil {
@@ -198,6 +202,22 @@ func (nr *NetHTTPRequest) StartRequest() {
 				httpRequest.Header.Get("x-request-id"),
 				context,
 			)
+			if len(headersMap) > 0 {
+				// prefer config iteration, headers are already parsed into a map
+				for headerName, tagName := range headersMap {
+					if val := httpRequest.Header.Get(headerName); val != "" {
+						span.SetTag(tagName, val)
+					}
+				}
+			}
+			if len(cookiesMap) > 0 {
+				// prefer cookies list iteration (there is no pre-parsed cookies list)
+				for _, cookie := range httpRequest.Cookies() {
+					if tagName, ok := cookiesMap[cookie.Name]; ok {
+						span.SetTag(tagName, cookie.Value)
+					}
+				}
+			}
 		} else {
 			span.Tracer().Inject(
 				span.Context(),
