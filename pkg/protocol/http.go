@@ -70,7 +70,7 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 
 		tmpWriter.Stop()
 
-		// TODO: expose x-request-id key to sidecar config
+		// TODO: expose x-request-id key to sidecar httpConfig
 		if req.Header.Get("x-request-id") == "" {
 			req.Header["X-Request-Id"] = []string{uuid.New().String()}
 		}
@@ -172,10 +172,6 @@ func NewNetHTTPRequest() *NetHTTPRequest {
 	}
 }
 
-// todo: move to come kind of runtime configuration
-var headersMap = map[string]string{"x-test-id": "testTag"}
-var cookiesMap = map[string]string{"testId": "testTag"}
-
 func (nr *NetHTTPRequest) StartRequest() {
 	request := nr.httpRequests.Peek()
 	if request == nil {
@@ -202,18 +198,19 @@ func (nr *NetHTTPRequest) StartRequest() {
 				httpRequest.Header.Get("x-request-id"),
 				context,
 			)
-			if len(headersMap) > 0 {
-				// prefer config iteration, headers are already parsed into a map
-				for headerName, tagName := range headersMap {
+			config := getHttpConfig()
+			if len(config.HeadersMap) > 0 {
+				// prefer httpConfig iteration, headers are already parsed into a map
+				for headerName, tagName := range config.HeadersMap {
 					if val := httpRequest.Header.Get(headerName); val != "" {
 						span.SetTag(tagName, val)
 					}
 				}
 			}
-			if len(cookiesMap) > 0 {
+			if len(config.CookiesMap) > 0 {
 				// prefer cookies list iteration (there is no pre-parsed cookies list)
 				for _, cookie := range httpRequest.Cookies() {
-					if tagName, ok := cookiesMap[cookie.Name]; ok {
+					if tagName, ok := config.CookiesMap[cookie.Name]; ok {
 						span.SetTag(tagName, cookie.Value)
 					}
 				}

@@ -15,6 +15,7 @@ import (
 	jaegercfg "github.com/uber/jaeger-client-go/config"
 
 	"github.com/Lookyan/netramesh/pkg/estabcache"
+	"github.com/Lookyan/netramesh/pkg/protocol"
 	"github.com/Lookyan/netramesh/pkg/transport"
 )
 
@@ -51,6 +52,8 @@ func main() {
 	}
 	defer closer.Close()
 	opentracing.SetGlobalTracer(tracer)
+
+	protocol.GlobalConfigFromENV()
 
 	addr := "0.0.0.0:14956"
 	lAddr, err := net.ResolveTCPAddr("tcp", addr)
