@@ -70,7 +70,7 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 
 		tmpWriter.Stop()
 
-		// TODO: expose x-request-id key to sidecar config
+		// TODO: expose x-request-id key to sidecar httpConfig
 		if req.Header.Get("x-request-id") == "" {
 			req.Header["X-Request-Id"] = []string{uuid.New().String()}
 		}
@@ -198,6 +198,23 @@ func (nr *NetHTTPRequest) StartRequest() {
 				httpRequest.Header.Get("x-request-id"),
 				context,
 			)
+			config := getHttpConfig()
+			if len(config.HeadersMap) > 0 {
+				// prefer httpConfig iteration, headers are already parsed into a map
+				for headerName, tagName := range config.HeadersMap {
+					if val := httpRequest.Header.Get(headerName); val != "" {
+						span.SetTag(tagName, val)
+					}
+				}
+			}
+			if len(config.CookiesMap) > 0 {
+				// prefer cookies list iteration (there is no pre-parsed cookies list)
+				for _, cookie := range httpRequest.Cookies() {
+					if tagName, ok := config.CookiesMap[cookie.Name]; ok {
+						span.SetTag(tagName, cookie.Value)
+					}
+				}
+			}
 		} else {
 			span.Tracer().Inject(
 				span.Context(),
