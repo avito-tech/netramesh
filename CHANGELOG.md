@@ -1,3 +1,6 @@
+# 0.0.6
+- Added HTTP_HEADER_TAG_MAP and HTTP_COOKIE_TAG_MAP Env config vars for HTTP headers to tracing span tag conversion
+
 # 0.0.5
 - HTTP upgrade type fallback to TCP added
 

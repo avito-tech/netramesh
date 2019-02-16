@@ -14,6 +14,12 @@ Check out [examples](./examples)
 
 Also it supports any TCP proto traffic (proxies it transparently).
 
+## HTTP proto
+
+You can use `HTTP_HEADER_TAG_MAP` and `HTTP_COOKIE_TAG_MAP` for HTTP header to span tag conversion.
+
+Example: `HTTP_HEADER_TAG_MAP=x-session:http.session,x-mobile-info:http.x-mobile-info`
+
 ## How it works
 
 // in progress
