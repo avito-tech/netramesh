@@ -7,7 +7,7 @@ import (
 
 type NetHandler interface {
 	// HandleRequest should get all data from r, process it and write result to w
-	HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool)
+	HandleRequest(r io.ReadCloser, w io.ReadWriter, netRequest NetRequest, isInboundConn bool) string
 	// HandleResponse should get all data from r, process it and write result to w
 	HandleResponse(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool)
 }

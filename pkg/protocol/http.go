@@ -17,15 +17,18 @@ import (
 
 type HTTPHandler struct {
 	tracingContextMapping *cache.Cache
+	routingHeader string
 }
 
 func NewHTTPHandler(tracingContextMapping *cache.Cache) *HTTPHandler {
+	config := getHTTPConfig()
 	return &HTTPHandler{
 		tracingContextMapping: tracingContextMapping,
+		routingHeader: config.HostSubstitutionHeader,
 	}
 }
 
-func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
+func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.ReadWriter, netRequest NetRequest, isInboundConn bool) string {
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
 	netHTTPRequest.isInbound = isInboundConn
 	netHTTPRequest.tracingContextMapping = h.tracingContextMapping
@@ -156,6 +159,10 @@ func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netReque
 	}
 }
 
+func (h *HTTPHandler) NeedRoutingControl() bool {
+	return h.routingHeader != ""
+}
+
 type NetHTTPRequest struct {
 	httpRequests          *Queue
 	httpResponses         *Queue
@@ -198,7 +205,7 @@ func (nr *NetHTTPRequest) StartRequest() {
 				httpRequest.Header.Get("x-request-id"),
 				context,
 			)
-			config := getHttpConfig()
+			config := getHTTPConfig()
 			if len(config.HeadersMap) > 0 {
 				// prefer httpConfig iteration, headers are already parsed into a map
 				for headerName, tagName := range config.HeadersMap {

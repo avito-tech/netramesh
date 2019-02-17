@@ -6,27 +6,30 @@ import (
 	"strings"
 )
 
-type HttpConfig struct {
-	HeadersMap map[string]string
-	CookiesMap map[string]string
+type HTTPConfig struct {
+	HeadersMap             map[string]string
+	CookiesMap             map[string]string
+	HostSubstitutionHeader string
 }
 
-var httpConfig = HttpConfig{
-	HeadersMap: map[string]string{},
-	CookiesMap: map[string]string{},
+var httpConfig = HTTPConfig{
+	HeadersMap:             map[string]string{},
+	CookiesMap:             map[string]string{},
+	HostSubstitutionHeader: "",
 }
 
-func getHttpConfig() HttpConfig {
+func getHTTPConfig() HTTPConfig {
 	return httpConfig
 }
 
 const (
-	envHttpHeaderTagMap = "HTTP_HEADER_TAG_MAP"
-	envHttpCookieTagMap = "HTTP_COOKIE_TAG_MAP"
+	envHTTPHeaderTagMap           = "HTTP_HEADER_TAG_MAP"
+	envHTTPCookieTagMap           = "HTTP_COOKIE_TAG_MAP"
+	envHTTPHostSubstitutionHeader = "HTTP_HOST_SUBSTITUTION_HEADER"
 )
 
 func GlobalConfigFromENV() {
-	if v := os.Getenv(envHttpHeaderTagMap); v != "" {
+	if v := os.Getenv(envHTTPHeaderTagMap); v != "" {
 		pairs := strings.Split(v, ",")
 		for _, pair := range pairs {
 			kv := strings.SplitN(pair, ":", 2)
@@ -37,7 +40,7 @@ func GlobalConfigFromENV() {
 			log.Printf("loaded header to tag mapping: %s => %s", kv[0], kv[1])
 		}
 	}
-	if v := os.Getenv(envHttpCookieTagMap); v != "" {
+	if v := os.Getenv(envHTTPCookieTagMap); v != "" {
 		pairs := strings.Split(v, ",")
 		for _, pair := range pairs {
 			kv := strings.SplitN(pair, ":", 2)
@@ -47,5 +50,9 @@ func GlobalConfigFromENV() {
 			httpConfig.CookiesMap[kv[0]] = kv[1]
 			log.Printf("loaded cookie to tag mapping: %s => %s", kv[0], kv[1])
 		}
+	}
+	if v := os.Getenv(envHTTPHostSubstitutionHeader); v != "" {
+		// TODO: parse to map
+		httpConfig.HostSubstitutionHeader = v
 	}
 }

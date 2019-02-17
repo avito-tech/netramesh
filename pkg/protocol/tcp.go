@@ -12,7 +12,11 @@ func NewTCPHandler() *TCPHandler {
 	return &TCPHandler{}
 }
 
-func (h *TCPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
+func (h *TCPHandler) HandleRequest(
+	r io.ReadCloser,
+	w io.ReadWriter,
+	netRequest NetRequest,
+	isInboundConn bool) string {
 	buf := bufferPool.Get().([]byte)
 	written, err := io.CopyBuffer(w, r, buf)
 	bufferPool.Put(buf)
@@ -20,6 +24,7 @@ func (h *TCPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest
 	if err != nil {
 		log.Printf("Err CopyBuffer: %s", err.Error())
 	}
+	return ""
 }
 
 func (h *TCPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
@@ -30,6 +35,10 @@ func (h *TCPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netReques
 	if err != nil {
 		log.Printf("Err CopyBuffer: %s", err.Error())
 	}
+}
+
+func (h *TCPHandler) NeedRoutingControl() bool {
+	return false
 }
 
 type NetTCPRequest struct {

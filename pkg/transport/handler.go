@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -8,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/patrickmn/go-cache"
 
@@ -18,25 +18,29 @@ import (
 
 const SO_ORIGINAL_DST = 80
 
-func tcpCopy(
+// tcpRequestCopy returns new address to go if we don't go to original DST
+func tcpRequestCopy(
+	r io.ReadWriteCloser,
+	w io.ReadWriter,
+	netRequest protocol.NetRequest,
+	netHandler protocol.NetHandler,
+	isInBoundConn bool) string {
+	return netHandler.HandleRequest(r, w, netRequest, isInBoundConn)
+}
+
+// tcpRequestCopy returns new address to go if we don't go to original DST
+func tcpResponseCopy(
 	r io.ReadWriteCloser,
 	w io.ReadWriteCloser,
-	initiator bool,
 	netRequest protocol.NetRequest,
 	netHandler protocol.NetHandler,
 	isInBoundConn bool,
 	done chan struct{}) {
-	startD := time.Now()
-	if initiator {
-		netHandler.HandleRequest(r, w, netRequest, isInBoundConn)
-	} else {
-		netHandler.HandleResponse(r, w, netRequest, isInBoundConn)
-	}
-
-	log.Printf("TCP connection Duration: %s (initiator: %t)", time.Since(startD).String(), initiator)
-	done <- struct{}{}
+	netHandler.HandleResponse(r, w, netRequest, isInBoundConn)
+	done <- struct {}{}
 }
 
+// HandleConnection handles netra input connections
 func HandleConnection(conn *net.TCPConn, ec *estabcache.EstablishedCache, tracingContextMapping *cache.Cache) {
 	if conn == nil {
 		return
@@ -80,6 +84,22 @@ func HandleConnection(conn *net.TCPConn, ec *estabcache.EstablishedCache, tracin
 	log.Printf("From: %s To: %s", conn.RemoteAddr(), conn.LocalAddr())
 	log.Printf("Original destination :: %s", dstAddr)
 
+	// determine protocol and choose logic
+	p := protocol.Determine(dstAddr)
+	log.Printf("Determined %s protocol", p)
+	netRequest := protocol.GetNetRequest(p)
+	netHandler := protocol.GetNetworkHandler(p, tracingContextMapping)
+
+	// waiting while interaction ended
+	done := make(chan struct{}, 1)
+
+	requestReader := &bytes.Buffer{}
+	// protocol can change final destination
+	newDstAddr := tcpRequestCopy(conn, requestReader, netRequest, netHandler, isInBoundConn)
+	if newDstAddr != "" {
+		dstAddr = newDstAddr
+	}
+
 	tcpDstAddr, err := net.ResolveTCPAddr("tcp", dstAddr)
 	if err != nil {
 		log.Printf("Error while resolving tcp addr %s", dstAddr)
@@ -89,6 +109,7 @@ func HandleConnection(conn *net.TCPConn, ec *estabcache.EstablishedCache, tracin
 		log.Print(err.Error())
 		return
 	}
+
 	defer func() {
 		log.Print("Closing target conn")
 		// same logic as for source tcp connection
@@ -98,17 +119,14 @@ func HandleConnection(conn *net.TCPConn, ec *estabcache.EstablishedCache, tracin
 		log.Print("Closed target conn")
 	}()
 
-	// determine protocol and choose logic
-	p := protocol.Determine(dstAddr)
-	log.Printf("Determined %s protocol", p)
-	netRequest := protocol.GetNetRequest(p)
-	netHandler := protocol.GetNetworkHandler(p, tracingContextMapping)
-
 	ec.Add(dstAddr)
 
-	done := make(chan struct{}, 1)
-	go tcpCopy(conn, targetConn, true, netRequest, netHandler, isInBoundConn, done)
-	go tcpCopy(targetConn, conn, false, netRequest, netHandler, isInBoundConn, done)
+	go func() {
+		io.Copy(targetConn, requestReader)
+		done <- struct{}{}
+	}()
+	go tcpResponseCopy(targetConn, conn, netRequest, netHandler, isInBoundConn, done)
+
 	<-done
 
 	log.Print("Finished")
