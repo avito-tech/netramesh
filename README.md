@@ -1,4 +1,7 @@
 # NetraMesh
+
+![netramesh](media/logo.png)
+
 [![CircleCI](https://circleci.com/gh/Lookyan/netramesh/tree/master.svg?style=svg)](https://circleci.com/gh/Lookyan/netramesh/tree/master)
 
 Service mesh NetraMesh includes:
