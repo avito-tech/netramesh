@@ -253,30 +253,47 @@ func (nr *NetHTTPRequest) StopRequest() {
 		span := nr.spans.Pop()
 		if span != nil {
 			requestSpan := span.(opentracing.Span)
-
-			requestSpan.SetTag("http.host", httpRequest.Host)
-			requestSpan.SetTag("http.path", httpRequest.URL.String())
-			requestSpan.SetTag("http.request_size", httpRequest.ContentLength)
-			requestSpan.SetTag("http.response_size", httpResponse.ContentLength)
-			requestSpan.SetTag("http.method", httpRequest.Method)
-			requestSpan.SetTag("http.status_code", httpResponse.StatusCode)
-
-			if httpResponse.StatusCode >= 500 {
-				requestSpan.SetTag("error", "true")
-			}
-
-			if nr.isInbound {
-				requestSpan.SetTag("span.kind", "server")
-			} else {
-				requestSpan.SetTag("span.kind", "client")
-			}
-			if userAgent := httpRequest.Header.Get("User-Agent"); userAgent != "" {
-				requestSpan.SetTag("http.user_agent", userAgent)
-			}
-			if requestID := httpRequest.Header.Get("X-Request-ID"); requestID != "" {
-				requestSpan.SetTag("http.request_id", requestID)
-			}
+			nr.fillSpan(requestSpan, httpRequest, httpResponse)
 			requestSpan.Finish()
+		}
+	}
+
+	if request != nil && response == nil {
+		httpRequest := request.(*http.Request)
+		span := nr.spans.Pop()
+		if span != nil {
+			requestSpan := span.(opentracing.Span)
+			nr.fillSpan(requestSpan, httpRequest, nil)
+			requestSpan.SetTag("error", true)
+			requestSpan.SetTag("timeout", true)
+			requestSpan.Finish()
+		}
+	}
+}
+
+func (nr *NetHTTPRequest) fillSpan(span opentracing.Span, req *http.Request, resp *http.Response) {
+	if nr.isInbound {
+		span.SetTag("span.kind", "server")
+	} else {
+		span.SetTag("span.kind", "client")
+	}
+	if req != nil {
+		span.SetTag("http.host", req.Host)
+		span.SetTag("http.path", req.URL.String())
+		span.SetTag("http.request_size", req.ContentLength)
+		span.SetTag("http.method", req.Method)
+		if userAgent := req.Header.Get("User-Agent"); userAgent != "" {
+			span.SetTag("http.user_agent", userAgent)
+		}
+		if requestID := req.Header.Get("X-Request-ID"); requestID != "" {
+			span.SetTag("http.request_id", requestID)
+		}
+	}
+	if resp != nil {
+		span.SetTag("http.response_size", resp.ContentLength)
+		span.SetTag("http.status_code", resp.StatusCode)
+		if resp.StatusCode >= 500 {
+			span.SetTag("error", "true")
 		}
 	}
 }
