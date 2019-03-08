@@ -2,26 +2,28 @@ package protocol
 
 import (
 	"github.com/patrickmn/go-cache"
+
+	"github.com/Lookyan/netramesh/pkg/log"
 )
 
-func GetNetworkHandler(proto Proto, tracingContextMapping *cache.Cache) NetHandler {
+func GetNetworkHandler(proto Proto, logger *log.Logger, tracingContextMapping *cache.Cache) NetHandler {
 	switch proto {
 	case HTTPProto:
-		return NewHTTPHandler(tracingContextMapping)
+		return NewHTTPHandler(logger, tracingContextMapping)
 	case TCPProto:
-		return NewTCPHandler()
+		return NewTCPHandler(logger)
 	default:
-		return NewTCPHandler()
+		return NewTCPHandler(logger)
 	}
 }
 
-func GetNetRequest(proto Proto) NetRequest {
+func GetNetRequest(proto Proto, logger *log.Logger) NetRequest {
 	switch proto {
 	case HTTPProto:
-		return NewNetHTTPRequest()
+		return NewNetHTTPRequest(logger)
 	case TCPProto:
-		return NewNetTCPRequest()
+		return NewNetTCPRequest(logger)
 	default:
-		return NewNetTCPRequest()
+		return NewNetTCPRequest(logger)
 	}
 }

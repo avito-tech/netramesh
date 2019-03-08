@@ -25,4 +25,3 @@ Example: `HTTP_HEADER_TAG_MAP=x-session:http.session,x-mobile-info:http.x-mobile
 
 ## How it works
 
-// in progress

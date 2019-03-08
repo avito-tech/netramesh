@@ -1,3 +1,6 @@
+# 0.1
+- Logger, configuration and specific port traffic forwarding
+
 # 0.0.7
 - Added timeout tag to spans for client timeouts
 

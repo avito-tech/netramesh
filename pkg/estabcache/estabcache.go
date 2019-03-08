@@ -1,9 +1,10 @@
 package estabcache
 
 import (
-	"log"
 	"sync"
 	"time"
+
+	"github.com/Lookyan/netramesh/pkg/log"
 )
 
 type EstablishedCache struct {
@@ -30,8 +31,8 @@ func (e *EstablishedCache) Remove(addr string) {
 	e.rw.Unlock()
 }
 
-func (e *EstablishedCache) PrintConnections() {
+func (e *EstablishedCache) PrintConnections(logger *log.Logger) {
 	e.rw.RLock()
-	log.Print(e.m)
+	logger.Info(e.m)
 	e.rw.RUnlock()
 }

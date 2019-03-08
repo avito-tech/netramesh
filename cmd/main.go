@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"log"
+	"io/ioutil"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -14,26 +14,33 @@ import (
 	"github.com/patrickmn/go-cache"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
 
+	"github.com/Lookyan/netramesh/internal/config"
 	"github.com/Lookyan/netramesh/pkg/estabcache"
-	"github.com/Lookyan/netramesh/pkg/protocol"
+	"github.com/Lookyan/netramesh/pkg/log"
 	"github.com/Lookyan/netramesh/pkg/transport"
 )
 
 func main() {
+	logger := log.Init("NETRA", log.ErrorLevel,  ioutil.Discard)
 	serviceName := flag.String("service-name", "", "service name for jaeger")
 	flag.Parse()
 	if *serviceName == "" {
-		log.Fatal("service-name flag should be set")
+		logger.Fatal("service-name flag should be set")
+	}
+
+	err := config.GlobalConfigFromENV(logger)
+	if err != nil {
+		logger.Fatal(err.Error())
 	}
 
 	go func() {
 		// pprof
-		log.Println(http.ListenAndServe("0.0.0.0:14957", nil))
+		logger.Error(http.ListenAndServe("0.0.0.0:" + string(config.GetNetraConfig().PprofPort), nil))
 	}()
 
 	go func() {
 		for {
-			log.Printf("Num of goroutines: %d", runtime.NumGoroutine())
+			logger.Info("Num of goroutines: " + string(runtime.NumGoroutine()))
 			time.Sleep(5 * time.Second)
 		}
 	}()
@@ -42,47 +49,46 @@ func main() {
 	cfg, err := jaegercfg.FromEnv()
 	if err != nil {
 		// parsing errors might happen here, such as when we get a string where we expect a number
-		log.Printf("Could not parse Jaeger env vars: %s", err.Error())
-		return
+		logger.Fatalf("Could not parse Jaeger env vars: %s", err.Error())
 	}
 	tracer, closer, err := cfg.NewTracer()
 	if err != nil {
-		log.Printf("Could not initialize jaeger tracer: %s", err.Error())
-		return
+		logger.Fatalf("Could not initialize jaeger tracer: %s", err.Error())
 	}
 	defer closer.Close()
 	opentracing.SetGlobalTracer(tracer)
 
-	protocol.GlobalConfigFromENV()
-
-	addr := "0.0.0.0:14956"
+	addr := "0.0.0.0:" + string(config.GetNetraConfig().Port)
 	lAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
-		log.Fatal(err.Error())
+		logger.Fatal(err.Error())
 	}
 
 	ln, err := net.ListenTCP("tcp", lAddr)
 	if err != nil {
-		log.Fatal(err.Error())
+		logger.Fatal(err.Error())
 	}
 
 	establishedCache := estabcache.NewEstablishedCache()
 	go func() {
 		for {
-			establishedCache.PrintConnections()
+			establishedCache.PrintConnections(logger)
 			time.Sleep(5 * time.Second)
 		}
 	}()
 
-	tracingContextMapping := cache.New(5*time.Second, 1*time.Second)
+	tracingContextMapping := cache.New(
+		config.GetNetraConfig().TracingContextExpiration,
+		config.GetNetraConfig().TracingContextCleanupInterval,
+	)
 
 	for {
 		conn, err := ln.AcceptTCP()
 		if err != nil {
-			log.Print(err.Error())
+			logger.Warning(err.Error())
 			continue
 		}
 
-		go transport.HandleConnection(conn, establishedCache, tracingContextMapping)
+		go transport.HandleConnection(logger, conn, establishedCache, tracingContextMapping)
 	}
 }
