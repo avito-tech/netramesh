@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -16,9 +17,10 @@ var (
 type Level int
 
 const (
-	initText         = "Logger Init wasn't called"
-	flags            = log.Ldate | log.Lmicroseconds | log.Lshortfile
-	FatalLevel Level = iota
+	initText                  = "Logger Init wasn't called"
+	flags                     = log.Ldate | log.Lmicroseconds | log.Lshortfile
+	EnvNetraLoggerLevel       = "NETRA_LOGGER_LEVEL"
+	FatalLevel          Level = iota
 	ErrorLevel
 	WarnLevel
 	InfoLevel
@@ -40,7 +42,27 @@ func initialize() {
 	}
 }
 
-func Init(name string, errorLevel Level, logFile io.Writer) *Logger {
+func Init(name string, errorLevel string, logFile io.Writer) (*Logger, error) {
+	var level Level
+	if errorLevel != "" {
+		errorLevel = strings.ToLower(errorLevel)
+		switch errorLevel {
+		case "fatal":
+			level = FatalLevel
+		case "error":
+			level = ErrorLevel
+		case "warning":
+			level = WarnLevel
+		case "warn":
+			level = WarnLevel
+		case "info":
+			level = InfoLevel
+		case "debug":
+			level = DebugLevel
+		default:
+			return nil, fmt.Errorf("invalid logger level %s", errorLevel)
+		}
+	}
 	var il io.Writer
 
 	iLogs := []io.Writer{logFile}
@@ -49,8 +71,8 @@ func Init(name string, errorLevel Level, logFile io.Writer) *Logger {
 	}
 
 	l := Logger{
-		outputLevel: errorLevel,
-		inner: log.New(io.MultiWriter(iLogs...), name, flags),
+		outputLevel: level,
+		inner:       log.New(io.MultiWriter(iLogs...), name, flags),
 	}
 	l.closer = logFile.(io.Closer)
 	l.initialized = true
@@ -61,7 +83,7 @@ func Init(name string, errorLevel Level, logFile io.Writer) *Logger {
 		defaultLogger = &l
 	}
 
-	return &l
+	return &l, nil
 }
 
 func (l *Logger) Close() {

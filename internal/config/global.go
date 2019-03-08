@@ -10,17 +10,18 @@ import (
 )
 
 type NetraConfig struct {
-	Port int
-	PprofPort int
-	TracingContextExpiration time.Duration
+	Port                          int
+	PprofPort                     int
+	TracingContextExpiration      time.Duration
 	TracingContextCleanupInterval time.Duration
+	LoggerLevel                   log.Level
 }
 
 var netraConfig = NetraConfig{
-	Port: 14956,
-	PprofPort: 14957,
-	TracingContextExpiration: 5*time.Second,
-	TracingContextCleanupInterval: 1*time.Second,
+	Port:                          14956,
+	PprofPort:                     14957,
+	TracingContextExpiration:      5 * time.Second,
+	TracingContextCleanupInterval: 1 * time.Second,
 }
 
 func GetNetraConfig() NetraConfig {
@@ -42,15 +43,15 @@ func GetHttpConfig() HttpConfig {
 }
 
 const (
-	envNetraPort = "NETRA_PORT"
-	envNetraPprofPort = "NETRA_PPROF_PORT"
-	envNetraTracingContextExpiration = "NETRA_TRACING_CONTEXT_EXPIRATION_MILLISECONDS"
+	envNetraPort                          = "NETRA_PORT"
+	envNetraPprofPort                     = "NETRA_PPROF_PORT"
+	envNetraTracingContextExpiration      = "NETRA_TRACING_CONTEXT_EXPIRATION_MILLISECONDS"
 	envNetraTracingContextCleanupInterval = "NETRA_TRACING_CONTEXT_CLEANUP_INTERVAL"
-	envHttpHeaderTagMap = "HTTP_HEADER_TAG_MAP"
-	envHttpCookieTagMap = "HTTP_COOKIE_TAG_MAP"
+	envHttpHeaderTagMap                   = "HTTP_HEADER_TAG_MAP"
+	envHttpCookieTagMap                   = "HTTP_COOKIE_TAG_MAP"
 )
 
-func GlobalConfigFromENV(log *log.Logger) error {
+func GlobalConfigFromENV(logger *log.Logger) error {
 	if v := os.Getenv(envHttpHeaderTagMap); v != "" {
 		pairs := strings.Split(v, ",")
 		for _, pair := range pairs {
@@ -59,7 +60,7 @@ func GlobalConfigFromENV(log *log.Logger) error {
 				continue
 			}
 			httpConfig.HeadersMap[kv[0]] = kv[1]
-			log.Infof("loaded header to tag mapping: %s => %s", kv[0], kv[1])
+			logger.Infof("loaded header to tag mapping: %s => %s", kv[0], kv[1])
 		}
 	}
 	if v := os.Getenv(envHttpCookieTagMap); v != "" {
@@ -70,7 +71,7 @@ func GlobalConfigFromENV(log *log.Logger) error {
 				continue
 			}
 			httpConfig.CookiesMap[kv[0]] = kv[1]
-			log.Infof("loaded cookie to tag mapping: %s => %s", kv[0], kv[1])
+			logger.Infof("loaded cookie to tag mapping: %s => %s", kv[0], kv[1])
 		}
 	}
 	if v := os.Getenv(envNetraPort); v != "" {
@@ -92,14 +93,14 @@ func GlobalConfigFromENV(log *log.Logger) error {
 		if err != nil {
 			return err
 		}
-		netraConfig.TracingContextExpiration = time.Duration(exp)*time.Millisecond
+		netraConfig.TracingContextExpiration = time.Duration(exp) * time.Millisecond
 	}
 	if v := os.Getenv(envNetraTracingContextCleanupInterval); v != "" {
 		c, err := strconv.Atoi(v)
 		if err != nil {
 			return err
 		}
-		netraConfig.TracingContextCleanupInterval = time.Duration(c)*time.Millisecond
+		netraConfig.TracingContextCleanupInterval = time.Duration(c) * time.Millisecond
 	}
 
 	return nil

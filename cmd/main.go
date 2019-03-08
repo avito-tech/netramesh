@@ -21,21 +21,24 @@ import (
 )
 
 func main() {
-	logger := log.Init("NETRA", log.ErrorLevel,  ioutil.Discard)
+	logger, err := log.Init("NETRA", os.Getenv(log.EnvNetraLoggerLevel), ioutil.Discard)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 	serviceName := flag.String("service-name", "", "service name for jaeger")
 	flag.Parse()
 	if *serviceName == "" {
 		logger.Fatal("service-name flag should be set")
 	}
 
-	err := config.GlobalConfigFromENV(logger)
+	err = config.GlobalConfigFromENV(logger)
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
 
 	go func() {
 		// pprof
-		logger.Error(http.ListenAndServe("0.0.0.0:" + string(config.GetNetraConfig().PprofPort), nil))
+		logger.Error(http.ListenAndServe("0.0.0.0:"+string(config.GetNetraConfig().PprofPort), nil))
 	}()
 
 	go func() {

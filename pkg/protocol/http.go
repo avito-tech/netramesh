@@ -19,13 +19,13 @@ import (
 
 type HTTPHandler struct {
 	tracingContextMapping *cache.Cache
-	logger *log.Logger
+	logger                *log.Logger
 }
 
 func NewHTTPHandler(logger *log.Logger, tracingContextMapping *cache.Cache) *HTTPHandler {
 	return &HTTPHandler{
 		tracingContextMapping: tracingContextMapping,
-		logger:logger,
+		logger:                logger,
 	}
 }
 
@@ -166,7 +166,7 @@ type NetHTTPRequest struct {
 	spans                 *Queue
 	isInbound             bool
 	tracingContextMapping *cache.Cache
-	logger *log.Logger
+	logger                *log.Logger
 }
 
 func NewNetHTTPRequest(logger *log.Logger) *NetHTTPRequest {
@@ -174,7 +174,7 @@ func NewNetHTTPRequest(logger *log.Logger) *NetHTTPRequest {
 		httpRequests:  NewQueue(),
 		httpResponses: NewQueue(),
 		spans:         NewQueue(),
-		logger: logger,
+		logger:        logger,
 	}
 }
 
