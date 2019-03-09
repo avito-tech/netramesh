@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"io/ioutil"
+	"fmt"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -21,7 +21,7 @@ import (
 )
 
 func main() {
-	logger, err := log.Init("NETRA", os.Getenv(log.EnvNetraLoggerLevel), ioutil.Discard)
+	logger, err := log.Init("NETRA", os.Getenv(log.EnvNetraLoggerLevel), os.Stderr)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -38,12 +38,14 @@ func main() {
 
 	go func() {
 		// pprof
-		logger.Error(http.ListenAndServe("0.0.0.0:"+string(config.GetNetraConfig().PprofPort), nil))
+		logger.Error(
+			http.ListenAndServe(
+				fmt.Sprintf("0.0.0.0:%d", config.GetNetraConfig().PprofPort), nil))
 	}()
 
 	go func() {
 		for {
-			logger.Info("Num of goroutines: " + string(runtime.NumGoroutine()))
+			logger.Infof("Num of goroutines: %d", runtime.NumGoroutine())
 			time.Sleep(5 * time.Second)
 		}
 	}()
@@ -61,7 +63,7 @@ func main() {
 	defer closer.Close()
 	opentracing.SetGlobalTracer(tracer)
 
-	addr := "0.0.0.0:" + string(config.GetNetraConfig().Port)
+	addr := fmt.Sprintf("0.0.0.0:%d", config.GetNetraConfig().Port)
 	lAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		logger.Fatal(err.Error())

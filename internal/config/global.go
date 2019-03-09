@@ -15,6 +15,7 @@ type NetraConfig struct {
 	TracingContextExpiration      time.Duration
 	TracingContextCleanupInterval time.Duration
 	LoggerLevel                   log.Level
+	HTTPProtoPorts                map[string]struct{}
 }
 
 var netraConfig = NetraConfig{
@@ -22,23 +23,24 @@ var netraConfig = NetraConfig{
 	PprofPort:                     14957,
 	TracingContextExpiration:      5 * time.Second,
 	TracingContextCleanupInterval: 1 * time.Second,
+	HTTPProtoPorts:                make(map[string]struct{}),
 }
 
 func GetNetraConfig() NetraConfig {
 	return netraConfig
 }
 
-type HttpConfig struct {
+type HTTPConfig struct {
 	HeadersMap map[string]string
 	CookiesMap map[string]string
 }
 
-var httpConfig = HttpConfig{
+var httpConfig = HTTPConfig{
 	HeadersMap: map[string]string{},
 	CookiesMap: map[string]string{},
 }
 
-func GetHttpConfig() HttpConfig {
+func GetHTTPConfig() HTTPConfig {
 	return httpConfig
 }
 
@@ -47,6 +49,7 @@ const (
 	envNetraPprofPort                     = "NETRA_PPROF_PORT"
 	envNetraTracingContextExpiration      = "NETRA_TRACING_CONTEXT_EXPIRATION_MILLISECONDS"
 	envNetraTracingContextCleanupInterval = "NETRA_TRACING_CONTEXT_CLEANUP_INTERVAL"
+	envNetraHTTPPorts                     = "NETRA_HTTP_PORTS"
 	envHttpHeaderTagMap                   = "HTTP_HEADER_TAG_MAP"
 	envHttpCookieTagMap                   = "HTTP_COOKIE_TAG_MAP"
 )
@@ -101,6 +104,17 @@ func GlobalConfigFromENV(logger *log.Logger) error {
 			return err
 		}
 		netraConfig.TracingContextCleanupInterval = time.Duration(c) * time.Millisecond
+	}
+	if v := os.Getenv(envNetraHTTPPorts); v != "" {
+		ports := strings.Split(v, ",")
+		for _, port := range ports {
+			// check that port is int
+			_, err := strconv.Atoi(port)
+			if err != nil {
+				return err
+			}
+			netraConfig.HTTPProtoPorts[port] = struct{}{}
+		}
 	}
 
 	return nil

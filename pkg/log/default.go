@@ -34,8 +34,8 @@ type Logger struct {
 	initialized bool
 }
 
-// initialize resets defaultLogger for testing
-func initialize() {
+// init resets defaultLogger for testing
+func init() {
 	defaultLogger = &Logger{
 		outputLevel: DebugLevel,
 		inner:       log.New(os.Stderr, initText, flags),
@@ -43,7 +43,7 @@ func initialize() {
 }
 
 func Init(name string, errorLevel string, logFile io.Writer) (*Logger, error) {
-	var level Level
+	level := InfoLevel
 	if errorLevel != "" {
 		errorLevel = strings.ToLower(errorLevel)
 		switch errorLevel {
@@ -269,7 +269,5 @@ func (l *Logger) output(s Level, depth int, txt string) {
 		l.inner.Output(switchFrameLvl+depth, "INFO: "+txt)
 	case s == DebugLevel && l.outputLevel >= DebugLevel:
 		l.inner.Output(switchFrameLvl+depth, "DEBUG: "+txt)
-	default:
-		panic(fmt.Sprintln("unrecognized severity:", s))
 	}
 }

@@ -204,7 +204,7 @@ func (nr *NetHTTPRequest) StartRequest() {
 				httpRequest.Header.Get("x-request-id"),
 				context,
 			)
-			httpConfig := config.GetHttpConfig()
+			httpConfig := config.GetHTTPConfig()
 			if len(httpConfig.HeadersMap) > 0 {
 				// prefer httpConfig iteration, headers are already parsed into a map
 				for headerName, tagName := range httpConfig.HeadersMap {
