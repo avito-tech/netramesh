@@ -42,7 +42,7 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 		tmpWriter.Start()
 		req, err := http.ReadRequest(bufioHTTPReader)
 		if err == io.EOF {
-			h.logger.Info("EOF while parsing request HTTP")
+			h.logger.Debug("EOF while parsing request HTTP")
 			return
 		}
 		if err != nil {
@@ -114,7 +114,7 @@ func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netReque
 		tmpWriter.Start()
 		resp, err := http.ReadResponse(bufioHTTPReader, nil)
 		if err == io.EOF {
-			h.logger.Info("EOF while parsing response HTTP")
+			h.logger.Debug("EOF while parsing response HTTP")
 			netHTTPRequest.StopRequest()
 			return
 		}
