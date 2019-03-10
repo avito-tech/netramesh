@@ -29,11 +29,11 @@ Also netra supports any TCP proto traffic (proxies it transparently).
 
 ## How it works
 
-![main parts](media/netra_main_parts.png | width=300)
+![main parts](media/netra_main_parts.png)
 
 To intercept all TCP traffic netra uses [iptables redirect rules](./iptables-rules.sh). After applying them, TCP traffic goes firstly to netra sidecar. Netra sidecar determines original destination using SO_ORIGINAL_DST socket option. After that netra sidecar works in bidirectional stream processing mode and proxies all TCP packets through itself. If app level protocol is HTTP1, netra parses it and sends tracing span.
 
-![traffic interception](media/netra_traffic_intercept.png | width=400)
+![traffic interception](media/netra_traffic_intercept.png)
 
 ## Injecting
 
