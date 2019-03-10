@@ -34,7 +34,6 @@ type Logger struct {
 	initialized bool
 }
 
-// init resets defaultLogger for testing
 func init() {
 	defaultLogger = &Logger{
 		outputLevel: DebugLevel,
