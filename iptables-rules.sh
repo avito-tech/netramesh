@@ -13,6 +13,8 @@ function dump {
 
 trap dump EXIT
 
+IFS=,
+
 if [ "${INBOUND_INTERCEPT_PORTS}" == "*" ]; then
     iptables -t nat -A PREROUTING -p tcp -m tcp -j REDIRECT --to-ports ${NETRA_SIDECAR_PORT}
 else
@@ -30,6 +32,6 @@ if [ "${OUTBOUND_INTERCEPT_PORTS}" == "*" ]; then
     iptables -t nat -A OUTPUT -p tcp -j REDIRECT --to-ports ${NETRA_SIDECAR_PORT}
 else
     for port in ${OUTBOUND_INTERCEPT_PORTS}; do
-        iptables -t nat --dport ${port} -A OUTPUT -p tcp -j REDIRECT --to-ports ${NETRA_SIDECAR_PORT}
+        iptables -t nat -A OUTPUT -p tcp --dport ${port} -j REDIRECT --to-ports ${NETRA_SIDECAR_PORT}
     done
 fi
