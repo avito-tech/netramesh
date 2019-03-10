@@ -1,6 +1,10 @@
 package protocol
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/Lookyan/netramesh/internal/config"
+)
 
 type Proto string
 
@@ -10,17 +14,10 @@ const (
 )
 
 func Determine(addr string) Proto {
+	httpPorts := config.GetNetraConfig().HTTPProtoPorts
 	port := strings.Split(addr, ":")[1]
-	switch port {
-	case "80":
+	if _, ok := httpPorts[port]; ok {
 		return HTTPProto
-	case "8890":
-		return HTTPProto
-	case "8891":
-		return HTTPProto
-	case "8080":
-		return HTTPProto
-	default:
-		return TCPProto
 	}
+	return TCPProto
 }

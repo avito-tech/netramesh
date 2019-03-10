@@ -54,6 +54,8 @@ spec:
           value: const
         - name: JAEGER_SAMPLER_PARAM
           value: "1"
+        - name: NETRA_HTTP_PORTS
+          value: "80,8890,8891,8080"
         image: lookyan/netra-sidecar:master
         imagePullPolicy: IfNotPresent
         name: netra-sidecar

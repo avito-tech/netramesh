@@ -2,23 +2,27 @@ package protocol
 
 import (
 	"io"
-	"log"
+
+	"github.com/Lookyan/netramesh/pkg/log"
 )
 
 type TCPHandler struct {
+	logger *log.Logger
 }
 
-func NewTCPHandler() *TCPHandler {
-	return &TCPHandler{}
+func NewTCPHandler(logger *log.Logger) *TCPHandler {
+	return &TCPHandler{
+		logger: logger,
+	}
 }
 
 func (h *TCPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
 	buf := bufferPool.Get().([]byte)
 	written, err := io.CopyBuffer(w, r, buf)
 	bufferPool.Put(buf)
-	log.Printf("Written: %d", written)
+	h.logger.Debugf("Written: %d", written)
 	if err != nil {
-		log.Printf("Err CopyBuffer: %s", err.Error())
+		h.logger.Debugf("Err CopyBuffer: %s", err.Error())
 	}
 }
 
@@ -26,16 +30,16 @@ func (h *TCPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netReques
 	buf := bufferPool.Get().([]byte)
 	written, err := io.CopyBuffer(w, r, buf)
 	bufferPool.Put(buf)
-	log.Printf("Written: %d", written)
+	h.logger.Debugf("Written: %d", written)
 	if err != nil {
-		log.Printf("Err CopyBuffer: %s", err.Error())
+		h.logger.Debugf("Err CopyBuffer: %s", err.Error())
 	}
 }
 
 type NetTCPRequest struct {
 }
 
-func NewNetTCPRequest() *NetTCPRequest {
+func NewNetTCPRequest(logger *log.Logger) *NetTCPRequest {
 	return &NetTCPRequest{}
 }
 

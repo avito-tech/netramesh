@@ -1,3 +1,9 @@
+# 0.1
+- Logger, configuration and specific port traffic forwarding
+
+# 0.0.7
+- Added timeout tag to spans for client timeouts
+
 # 0.0.6
 - Added HTTP_HEADER_TAG_MAP and HTTP_COOKIE_TAG_MAP Env config vars for HTTP headers to tracing span tag conversion
 
