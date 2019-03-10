@@ -31,7 +31,7 @@ Also netra supports any TCP proto traffic (proxies it transparently).
 
 ![main parts](media/netra_main_parts.png)
 
-To intercept all TCP traffic netra uses [iptables redirect rules](./iptables-rules.sh). After applying TCP traffic goes firstly to netra sidecar. Netra sidecar determines original destination using SO_ORIGINAL_DST socket option. After that netra sidecar works in bidirectional stream processing mode and proxies all TCP packets through itself. If app level protocol is HTTP1, netra parses it and sends tracing span.
+To intercept all TCP traffic netra uses [iptables redirect rules](./iptables-rules.sh). After applying them, TCP traffic goes firstly to netra sidecar. Netra sidecar determines original destination using SO_ORIGINAL_DST socket option. After that netra sidecar works in bidirectional stream processing mode and proxies all TCP packets through itself. If app level protocol is HTTP1, netra parses it and sends tracing span.
 
 ![traffic interception](media/netra_traffic_intercept.png)
 
@@ -54,6 +54,12 @@ OUTBOUND_INTERCEPT_PORTS | outbound ports to intercept (default *, all ports)
 
 ### Netra sidecar
 
+Switches
+
+Switch name| Description
+---|---
+--service-name| service name for jaeger distributed trace spans
+
 Env name| Description
 ---|---
 NETRA_LOGGER_LEVEL | logger level (default info), supported values: debug, info, warning, error, fatal
@@ -65,6 +71,7 @@ NETRA_HTTP_PORTS | comma separated ports to determine as HTTP1 protocol (no defa
 HTTP_HEADER_TAG_MAP | comma separated HTTP header to jaeger span tag conversion (example: `x-session:http.session,x-mobile-info:http.x-mobile-info`)
 HTTP_COOKIE_TAG_MAP | comma separated HTTP cookie value to span tag conversion (example: `sess:http.cookies.sess`)
 
+Also it supports all env variables [jaeger go library](https://github.com/jaegertracing/jaeger-client-go#environment-variables) provides.
 
 ## Comparison with Istio and linkerd2
 
