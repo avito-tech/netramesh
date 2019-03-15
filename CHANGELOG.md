@@ -1,3 +1,6 @@
+# 0.1.1
+- Improve performance of http handler. Avoid additional allocations.
+
 # 0.1
 - Logger, configuration and specific port traffic forwarding
 
