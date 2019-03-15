@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bufio"
+	"bytes"
 	"container/list"
 	"io"
 	"net/http"
@@ -17,11 +18,21 @@ import (
 	"github.com/Lookyan/netramesh/pkg/log"
 )
 
+
+var dumbReader = bytes.NewReader([]byte{})
+var readerPool = sync.Pool{
+	New: func() interface{} {
+		return bufio.NewReader(dumbReader)
+	},
+}
+
+// HTTPHandler process HTTP protocol
 type HTTPHandler struct {
 	tracingContextMapping *cache.Cache
 	logger                *log.Logger
 }
 
+// NewHTTPHandler returns HTTP handler
 func NewHTTPHandler(logger *log.Logger, tracingContextMapping *cache.Cache) *HTTPHandler {
 	return &HTTPHandler{
 		tracingContextMapping: tracingContextMapping,
@@ -29,6 +40,7 @@ func NewHTTPHandler(logger *log.Logger, tracingContextMapping *cache.Cache) *HTT
 	}
 }
 
+// HandleRequest handles HTTP request
 func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
 	netHTTPRequest.isInbound = isInboundConn
@@ -37,7 +49,9 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 	tmpWriter := NewTempWriter()
 	defer tmpWriter.Close()
 	readerWithFallback := io.TeeReader(r, tmpWriter)
-	bufioHTTPReader := bufio.NewReader(readerWithFallback)
+	bufioHTTPReader := readerPool.Get().(*bufio.Reader)
+	bufioHTTPReader.Reset(readerWithFallback)
+	defer readerPool.Put(bufioHTTPReader)
 	for {
 		tmpWriter.Start()
 		req, err := http.ReadRequest(bufioHTTPReader)
@@ -95,7 +109,7 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 
 		// write the same request to writer
 		err = req.Write(w)
-		if err != nil {
+		if err != nil && err != io.ErrUnexpectedEOF {
 			h.logger.Errorf("Error while writing request to w: %s", err.Error())
 		}
 	}
@@ -109,7 +123,9 @@ func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netReque
 	tmpWriter := NewTempWriter()
 	defer tmpWriter.Close()
 	readerWithFallback := io.TeeReader(r, tmpWriter)
-	bufioHTTPReader := bufio.NewReader(readerWithFallback)
+	bufioHTTPReader := readerPool.Get().(*bufio.Reader)
+	bufioHTTPReader.Reset(readerWithFallback)
+	defer readerPool.Put(bufioHTTPReader)
 	for {
 		tmpWriter.Start()
 		resp, err := http.ReadResponse(bufioHTTPReader, nil)
