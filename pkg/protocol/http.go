@@ -18,11 +18,17 @@ import (
 	"github.com/Lookyan/netramesh/pkg/log"
 )
 
-
 var dumbReader = bytes.NewReader([]byte{})
 var readerPool = sync.Pool{
 	New: func() interface{} {
-		return bufio.NewReader(dumbReader)
+		return bufio.NewReaderSize(dumbReader, 0xfff)
+	},
+}
+
+var dumbWriter = bytes.NewBuffer([]byte{})
+var writerPool = sync.Pool{
+	New: func() interface{} {
+		return bufio.NewWriterSize(dumbWriter, 0xfff)
 	},
 }
 
@@ -43,9 +49,6 @@ func NewHTTPHandler(logger *log.Logger, tracingContextMapping *cache.Cache) *HTT
 // HandleRequest handles HTTP request
 func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
-	netHTTPRequest.isInbound = isInboundConn
-	netHTTPRequest.tracingContextMapping = h.tracingContextMapping
-
 	tmpWriter := NewTempWriter()
 	defer tmpWriter.Close()
 	readerWithFallback := io.TeeReader(r, tmpWriter)
@@ -107,8 +110,12 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 		netHTTPRequest.SetHTTPRequest(req)
 		netHTTPRequest.StartRequest()
 
+		bufioWriter := writerPool.Get().(*bufio.Writer)
+		bufioWriter.Reset(w)
 		// write the same request to writer
-		err = req.Write(w)
+		err = req.Write(bufioWriter)
+		bufioWriter.Flush()
+		writerPool.Put(bufioWriter)
 		if err != nil && err != io.ErrUnexpectedEOF {
 			h.logger.Errorf("Error while writing request to w: %s", err.Error())
 		}
@@ -117,9 +124,6 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 
 func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
-	netHTTPRequest.isInbound = isInboundConn
-	netHTTPRequest.tracingContextMapping = h.tracingContextMapping
-
 	tmpWriter := NewTempWriter()
 	defer tmpWriter.Close()
 	readerWithFallback := io.TeeReader(r, tmpWriter)
@@ -165,8 +169,12 @@ func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netReque
 
 		tmpWriter.Stop()
 
+		bufioWriter := writerPool.Get().(*bufio.Writer)
+		bufioWriter.Reset(w)
 		// write the same response to w
-		err = resp.Write(w)
+		err = resp.Write(bufioWriter)
+		bufioWriter.Flush()
+		writerPool.Put(bufioWriter)
 		if err != nil {
 			h.logger.Errorf("Error while writing response to w: %s", err.Error())
 		}
@@ -185,12 +193,14 @@ type NetHTTPRequest struct {
 	logger                *log.Logger
 }
 
-func NewNetHTTPRequest(logger *log.Logger) *NetHTTPRequest {
+func NewNetHTTPRequest(logger *log.Logger, isInbound bool, tracingContextMapping *cache.Cache) *NetHTTPRequest {
 	return &NetHTTPRequest{
-		httpRequests:  NewQueue(),
-		httpResponses: NewQueue(),
-		spans:         NewQueue(),
-		logger:        logger,
+		httpRequests:          NewQueue(),
+		httpResponses:         NewQueue(),
+		spans:                 NewQueue(),
+		logger:                logger,
+		isInbound:             isInbound,
+		tracingContextMapping: tracingContextMapping,
 	}
 }
 

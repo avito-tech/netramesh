@@ -7,10 +7,9 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"runtime"
-	"time"
 
 	"github.com/opentracing/opentracing-go"
+	//"github.com/panjf2000/ants"
 	"github.com/patrickmn/go-cache"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
 
@@ -21,6 +20,7 @@ import (
 )
 
 func main() {
+	//defer ants.Release()
 	logger, err := log.Init("NETRA", os.Getenv(log.EnvNetraLoggerLevel), os.Stderr)
 	if err != nil {
 		log.Fatal(err.Error())
@@ -43,12 +43,12 @@ func main() {
 				fmt.Sprintf("0.0.0.0:%d", config.GetNetraConfig().PprofPort), nil))
 	}()
 
-	go func() {
-		for {
-			logger.Infof("Num of goroutines: %d", runtime.NumGoroutine())
-			time.Sleep(5 * time.Second)
-		}
-	}()
+	//go func() {
+	//	for {
+	//		logger.Debugf("Num of goroutines: %d", runtime.NumGoroutine())
+	//		time.Sleep(5 * time.Second)
+	//	}
+	//}()
 
 	os.Setenv("JAEGER_SERVICE_NAME", *serviceName)
 	cfg, err := jaegercfg.FromEnv()
@@ -75,17 +75,39 @@ func main() {
 	}
 
 	establishedCache := estabcache.NewEstablishedCache()
-	go func() {
-		for {
-			establishedCache.PrintConnections(logger)
-			time.Sleep(5 * time.Second)
-		}
-	}()
+	//go func() {
+	//	for {
+	//		establishedCache.PrintConnections(logger)
+	//		time.Sleep(5 * time.Second)
+	//	}
+	//}()
 
 	tracingContextMapping := cache.New(
 		config.GetNetraConfig().TracingContextExpiration,
 		config.GetNetraConfig().TracingContextCleanupInterval,
 	)
+
+	//tcpCopyPool, _ := ants.NewPoolWithFunc(10000, func(i interface{})  {
+	//	bucket := i.(*transport.TCPCopyBucket)
+	//	transport.TcpCopy(
+	//		logger,
+	//		bucket.R,
+	//		bucket.W,
+	//		bucket.Initiator,
+	//		bucket.NetRequest,
+	//		bucket.NetHandler,
+	//		bucket.IsInBoundConn,
+	//		bucket.Done)
+	//})
+
+	//syncHandleConnection := func(c interface{}) {
+	//	conn := c.(*net.TCPConn)
+	//	transport.HandleConnection(logger, conn, establishedCache, tracingContextMapping, tcpCopyPool)
+	//}
+
+	//p, _ := ants.NewPoolWithFunc(10000, func(i interface{}) {
+	//	syncHandleConnection(i)
+	//})
 
 	for {
 		conn, err := ln.AcceptTCP()
@@ -93,7 +115,7 @@ func main() {
 			logger.Warning(err.Error())
 			continue
 		}
-
+		//p.Invoke(conn)
 		go transport.HandleConnection(logger, conn, establishedCache, tracingContextMapping)
 	}
 }
