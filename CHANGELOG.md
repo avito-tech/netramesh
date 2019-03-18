@@ -1,3 +1,6 @@
+# 0.1.2
+- Performance optimizations
+
 # 0.1.1
 - Improve performance of http handler. Avoid additional allocations.
 

@@ -23,7 +23,7 @@ func NewTempWriter() *TempWriter {
 	}
 }
 
-// Write writes bytes into temp buffer if it
+// Write writes bytes into temp buffer if not stopped
 func (tw *TempWriter) Write(b []byte) (n int, err error) {
 	if !tw.stopped {
 		return tw.buf.Write(b)

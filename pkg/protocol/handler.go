@@ -13,5 +13,5 @@ type NetHandler interface {
 }
 
 var bufferPool = sync.Pool{
-	New: func() interface{} { return make([]byte, 0xfff) },
+	New: func() interface{} { return make([]byte, 0xffff) },
 }
