@@ -1,8 +1,6 @@
 package protocol
 
 import (
-	"sync"
-
 	"github.com/patrickmn/go-cache"
 
 	"github.com/Lookyan/netramesh/pkg/log"
@@ -11,18 +9,14 @@ import (
 var httpHandler *HTTPHandler
 var tcpHandler *TCPHandler
 var netTCPRequest *NetTCPRequest
-var handlerAssignmentLock = sync.Mutex{}
-var requestAssignmentLock = sync.Mutex{}
+
+func InitHandlerRequest(logger *log.Logger, tracingContextMapping *cache.Cache) {
+	httpHandler = NewHTTPHandler(logger, tracingContextMapping)
+	tcpHandler = NewTCPHandler(logger)
+	netTCPRequest = NewNetTCPRequest(logger)
+}
 
 func GetNetworkHandler(proto Proto, logger *log.Logger, tracingContextMapping *cache.Cache) NetHandler {
-	handlerAssignmentLock.Lock()
-	if httpHandler == nil {
-		httpHandler = NewHTTPHandler(logger, tracingContextMapping)
-	}
-	if tcpHandler == nil {
-		tcpHandler = NewTCPHandler(logger)
-	}
-	handlerAssignmentLock.Unlock()
 	switch proto {
 	case HTTPProto:
 		return httpHandler
@@ -34,11 +28,6 @@ func GetNetworkHandler(proto Proto, logger *log.Logger, tracingContextMapping *c
 }
 
 func GetNetRequest(proto Proto, isInbound bool, logger *log.Logger, tracingContextMapping *cache.Cache) NetRequest {
-	requestAssignmentLock.Lock()
-	if netTCPRequest == nil {
-		netTCPRequest = NewNetTCPRequest(logger)
-	}
-	requestAssignmentLock.Unlock()
 	switch proto {
 	case HTTPProto:
 		return NewNetHTTPRequest(logger, isInbound, tracingContextMapping)

@@ -3,6 +3,7 @@ package transport
 import (
 	"io"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,21 +34,31 @@ var tcpCopyBucketPool = sync.Pool{
 	},
 }
 
+var addrPool = &sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 0, 20)
+	},
+}
+
 func TcpCopy(
 	logger *log.Logger,
-	r io.ReadWriteCloser,
-	w io.ReadWriteCloser,
+	r *net.TCPConn,
+	w *net.TCPConn,
 	initiator bool,
 	netRequest protocol.NetRequest,
 	netHandler protocol.NetHandler,
 	isInBoundConn bool,
-	done chan struct{}) {
+	f *os.File,
+) {
 	if initiator {
 		netHandler.HandleRequest(r, w, netRequest, isInBoundConn)
 	} else {
 		netHandler.HandleResponse(r, w, netRequest, isInBoundConn)
 	}
-	done <- struct{}{}
+	f.Close()
+	closeConn(logger, r)
+	closeConn(logger, w)
+	//done <- struct{}{}
 }
 
 func HandleConnection(
@@ -60,22 +71,14 @@ func HandleConnection(
 	if conn == nil {
 		return
 	}
-	defer func() {
-		logger.Debug("Closing src conn")
-		// Important to close read operations
-		// to avoid waiting for never ending read operation when client doesn't close connection
-		conn.CloseRead()
-		conn.CloseWrite()
-		conn.Close()
-		logger.Debug("Closed src conn")
-	}()
 
 	f, err := conn.File()
 	if err != nil {
-		logger.Debug(err.Error())
+		closeConn(logger, conn)
+		logger.Debug("Closed src conn")
 		return
 	}
-	defer f.Close()
+
 	err = syscall.SetNonblock(int(f.Fd()), true)
 	if err != nil {
 		logger.Debug("Can't turn fd into non-blocking mode")
@@ -83,11 +86,12 @@ func HandleConnection(
 
 	addr, err := syscall.GetsockoptIPv6Mreq(int(f.Fd()), syscall.IPPROTO_IP, SO_ORIGINAL_DST)
 	if err != nil {
-		logger.Warning(err.Error())
+		f.Close()
+		closeConn(logger, conn)
 		return
 	}
 
-	ipBuilder := make([]byte, 0, 15)
+	ipBuilder := addrPool.Get().([]byte)
 	ipBuilder = append(ipBuilder, strconv.Itoa(int(addr.Multiaddr[4]))...)
 	ipBuilder = append(ipBuilder, '.')
 	ipBuilder = append(ipBuilder, strconv.Itoa(int(addr.Multiaddr[5]))...)
@@ -96,15 +100,19 @@ func HandleConnection(
 	ipBuilder = append(ipBuilder, '.')
 	ipBuilder = append(ipBuilder, strconv.Itoa(int(addr.Multiaddr[7]))...)
 	ipv4 := string(ipBuilder)
+	ipBuilder = ipBuilder[:0]
+	addrPool.Put(ipBuilder)
 	port := uint16(addr.Multiaddr[2])<<8 + uint16(addr.Multiaddr[3])
 
 	isInBoundConn := ipv4 == strings.Split(conn.LocalAddr().String(), ":")[0]
 
-	dstAddrBuilder := make([]byte, 0, len(ipv4)+5)
+	dstAddrBuilder := addrPool.Get().([]byte)
 	dstAddrBuilder = append(dstAddrBuilder, ipv4...)
 	dstAddrBuilder = append(dstAddrBuilder, ':')
 	dstAddrBuilder = append(dstAddrBuilder, strconv.Itoa(int(port))...)
 	dstAddr := string(dstAddrBuilder)
+	dstAddrBuilder = dstAddrBuilder[:0]
+	addrPool.Put(dstAddrBuilder)
 
 	tcpDstAddr, err := net.ResolveTCPAddr("tcp", dstAddr)
 	if err != nil {
@@ -113,16 +121,18 @@ func HandleConnection(
 	targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
 	if err != nil {
 		logger.Warning(err.Error())
+		f.Close()
+		closeConn(logger, conn)
 		return
 	}
-	defer func() {
-		logger.Debug("Closing target conn")
-		// same logic as for source tcp connection
-		targetConn.CloseRead()
-		targetConn.CloseWrite()
-		targetConn.Close()
-		logger.Debug("Closed target conn")
-	}()
+	//defer func() {
+	//	logger.Debug("Closing target conn")
+	//	// same logic as for source tcp connection
+	//	targetConn.CloseRead()
+	//	targetConn.CloseWrite()
+	//	targetConn.Close()
+	//	logger.Debug("Closed target conn")
+	//}()
 
 	// determine protocol and choose logic
 	p := protocol.Determine(dstAddr)
@@ -130,33 +140,19 @@ func HandleConnection(
 	netHandler := protocol.GetNetworkHandler(p, logger, tracingContextMapping)
 
 	//ec.Add(dstAddr)
-
-	done := make(chan struct{}, 1)
-	//tcpCopyBucket := tcpCopyBucketPool.Get().(*TCPCopyBucket)
-	//defer tcpCopyBucketPool.Put(tcpCopyBucket)
-	//tcpCopyBucket.R = conn
-	//tcpCopyBucket.W = targetConn
-	//tcpCopyBucket.Initiator = true
-	//tcpCopyBucket.NetRequest = netRequest
-	//tcpCopyBucket.NetHandler = netHandler
-	//tcpCopyBucket.IsInBoundConn = isInBoundConn
-	//tcpCopyBucket.Done = done
-	//tcpCopyPool.Invoke(tcpCopyBucket)
-	//
-	//tcpCopyBucket2 := tcpCopyBucketPool.Get().(*TCPCopyBucket)
-	//defer tcpCopyBucketPool.Put(tcpCopyBucket2)
-	//tcpCopyBucket2.R = targetConn
-	//tcpCopyBucket2.W = conn
-	//tcpCopyBucket2.Initiator = false
-	//tcpCopyBucket2.NetRequest = netRequest
-	//tcpCopyBucket2.NetHandler = netHandler
-	//tcpCopyBucket2.IsInBoundConn = isInBoundConn
-	//tcpCopyBucket2.Done = done
-	//tcpCopyPool.Invoke(tcpCopyBucket2)
-
-	go TcpCopy(logger, conn, targetConn, true, netRequest, netHandler, isInBoundConn, done)
-	go TcpCopy(logger, targetConn, conn, false, netRequest, netHandler, isInBoundConn, done)
-	<-done
+	go TcpCopy(logger, conn, targetConn, true, netRequest, netHandler, isInBoundConn, f)
+	go TcpCopy(logger, targetConn, conn, false, netRequest, netHandler, isInBoundConn, f)
+	//<-done
 
 	//ec.Remove(dstAddr)
+}
+
+func closeConn(logger *log.Logger, conn *net.TCPConn) {
+	logger.Debug("Closing src conn")
+	// Important to close read operations
+	// to avoid waiting for never ending read operation when client doesn't close connection
+	conn.CloseRead()
+	conn.CloseWrite()
+	conn.Close()
+	logger.Debug("Closed src conn")
 }

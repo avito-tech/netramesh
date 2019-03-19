@@ -255,7 +255,6 @@ func Fatalf(format string, v ...interface{}) {
 
 func (l *Logger) output(s Level, depth int, txt string) {
 	logLock.Lock()
-	defer logLock.Unlock()
 	var switchFrameLvl = 3
 	switch {
 	case s == FatalLevel && l.outputLevel >= FatalLevel:
@@ -269,4 +268,5 @@ func (l *Logger) output(s Level, depth int, txt string) {
 	case s == DebugLevel && l.outputLevel >= DebugLevel:
 		l.inner.Output(switchFrameLvl+depth, "DEBUG: "+txt)
 	}
+	logLock.Unlock()
 }
