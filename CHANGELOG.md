@@ -1,3 +1,6 @@
+# 0.1.3
+- Avoid address allocations in connection handling
+
 # 0.1.2
 - Performance optimizations
 
