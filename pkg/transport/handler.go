@@ -148,11 +148,11 @@ func HandleConnection(
 }
 
 func closeConn(logger *log.Logger, conn *net.TCPConn) {
-	logger.Debug("Closing src conn")
+	logger.Debug("Closing conn")
 	// Important to close read operations
 	// to avoid waiting for never ending read operation when client doesn't close connection
 	conn.CloseRead()
 	conn.CloseWrite()
 	conn.Close()
-	logger.Debug("Closed src conn")
+	logger.Debug("Closed conn")
 }
