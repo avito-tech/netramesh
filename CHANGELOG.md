@@ -1,3 +1,6 @@
+# 0.2
+- Added probabilistic routing mechanism
+
 # 0.1.3
 - Avoid address allocations in connection handling
 

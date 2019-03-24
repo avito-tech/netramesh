@@ -1,4 +1,4 @@
-# Netramesh
+# netramesh
 
 ![netramesh](media/logo.png)
 
@@ -13,7 +13,7 @@ Ultra light service mesh has main goals:
 - any infrastructure compatibility
 - transparency
 
-Service mesh Netramesh consists of two main parts:
+Service mesh netramesh consists of two main parts:
 - Transparent TCP proxy for microservices with original destination retrieval.
 - Init container for network rules configuration (iptables based).
 
@@ -45,11 +45,13 @@ For now netra supports only manual injecting.
 
 Env name| Description
 ---|---
-NETRA_SIDECAR_PORT | netra sidecar listen port redirect to (default 14956)
-NETRA_SIDECAR_USER_ID | netra sidecar user id to avoid infinite redirect loops (default 1337)
-NETRA_SIDECAR_GROUP_ID | netra sidecar group id to avoid infinite redirect loops (default 1337)
-INBOUND_INTERCEPT_PORTS | inbound ports to intercept (default *, all ports)
-OUTBOUND_INTERCEPT_PORTS | outbound ports to intercept (default *, all ports)
+NETRA_SIDECAR_PORT | netra sidecar listen port redirect to (defaults to 14956)
+NETRA_SIDECAR_USER_ID | netra sidecar user id to avoid infinite redirect loops (defaults to 1337)
+NETRA_SIDECAR_GROUP_ID | netra sidecar group id to avoid infinite redirect loops (defaults to 1337)
+INBOUND_INTERCEPT_PORTS | inbound ports to intercept (defaults to *, all ports)
+OUTBOUND_INTERCEPT_PORTS | outbound ports to intercept (defaults to *, all ports)
+NETRA_INBOUND_PROBABILITY | inbound probability to route TCP sessions (defaults to 1)
+NETRA_OUTBOUND_PROBABILITY | outbound probability to route TCP sessions (defaults to 1)
 
 
 ### Netra sidecar
