@@ -1,3 +1,7 @@
+# 0.2.1
+- Fixed bug with HTTP HEAD responses with non zero Content-length header
+- HTTP stdlib vendored
+
 # 0.2
 - Added probabilistic routing mechanism
 

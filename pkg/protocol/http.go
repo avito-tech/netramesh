@@ -15,6 +15,7 @@ import (
 	"github.com/uber/jaeger-client-go"
 
 	"github.com/Lookyan/netramesh/internal/config"
+	//myhttp "github.com/Lookyan/netramesh/pkg/http"
 	"github.com/Lookyan/netramesh/pkg/log"
 )
 
@@ -169,12 +170,18 @@ func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netReque
 
 		tmpWriter.Stop()
 
-		bufioWriter := writerPool.Get().(*bufio.Writer)
-		bufioWriter.Reset(w)
-		// write the same response to w
-		err = resp.Write(bufioWriter)
-		bufioWriter.Flush()
-		writerPool.Put(bufioWriter)
+		// if method == HEAD and content-length != 0, it will hang on read with LimitReader, handle this:
+		rq := netHTTPRequest.httpRequests.Peek().(*http.Request)
+		if rq.Method == http.MethodHead {
+			err = resp.Write(w)
+		} else {
+			bufioWriter := writerPool.Get().(*bufio.Writer)
+			bufioWriter.Reset(w)
+			// write the same response to w
+			err = resp.Write(bufioWriter)
+			bufioWriter.Flush()
+			writerPool.Put(bufioWriter)
+		}
 		if err != nil {
 			h.logger.Errorf("Error while writing response to w: %s", err.Error())
 		}
