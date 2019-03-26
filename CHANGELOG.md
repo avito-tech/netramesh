@@ -1,3 +1,6 @@
+# 0.2.2
+- Fixed HTTP HEAD check
+
 # 0.2.1
 - Fixed bug with HTTP HEAD responses with non zero Content-length header
 - HTTP stdlib vendored
