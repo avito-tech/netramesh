@@ -9,6 +9,10 @@ import (
 	"github.com/Lookyan/netramesh/pkg/log"
 )
 
+const (
+	defaultRequestIdHeaderName = "X-Request-Id"
+)
+
 type NetraConfig struct {
 	Port                          int
 	PprofPort                     int
@@ -31,13 +35,15 @@ func GetNetraConfig() NetraConfig {
 }
 
 type HTTPConfig struct {
-	HeadersMap map[string]string
-	CookiesMap map[string]string
+	HeadersMap          map[string]string
+	CookiesMap          map[string]string
+	RequestIdHeaderName string
 }
 
 var httpConfig = HTTPConfig{
-	HeadersMap: map[string]string{},
-	CookiesMap: map[string]string{},
+	HeadersMap:          map[string]string{},
+	CookiesMap:          map[string]string{},
+	RequestIdHeaderName: defaultRequestIdHeaderName,
 }
 
 func GetHTTPConfig() HTTPConfig {
@@ -52,6 +58,7 @@ const (
 	envNetraHTTPPorts                     = "NETRA_HTTP_PORTS"
 	envHttpHeaderTagMap                   = "HTTP_HEADER_TAG_MAP"
 	envHttpCookieTagMap                   = "HTTP_COOKIE_TAG_MAP"
+	envHttpRequestIdHeaderName            = "NETRA_HTTP_REQUEST_ID_HEADER_NAME"
 )
 
 func GlobalConfigFromENV(logger *log.Logger) error {
@@ -115,6 +122,9 @@ func GlobalConfigFromENV(logger *log.Logger) error {
 			}
 			netraConfig.HTTPProtoPorts[port] = struct{}{}
 		}
+	}
+	if v := os.Getenv(envHttpRequestIdHeaderName); v != "" {
+		httpConfig.RequestIdHeaderName = v
 	}
 
 	return nil

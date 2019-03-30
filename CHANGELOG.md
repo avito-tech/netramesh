@@ -1,3 +1,6 @@
+# 0.3
+- X-Request-Id exposed to ENV VAR
+
 # 0.2.2
 - Fixed HTTP HEAD check
 
