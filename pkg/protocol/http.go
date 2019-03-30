@@ -92,14 +92,15 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 
 		tmpWriter.Stop()
 
-		// TODO: expose x-request-id key to sidecar httpConfig
-		if req.Header.Get("x-request-id") == "" {
-			req.Header["X-Request-Id"] = []string{uuid.New().String()}
+		if req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName) == "" {
+			req.Header.Set(config.GetHTTPConfig().RequestIdHeaderName, uuid.New().String())
 		}
 
 		if !isInboundConn {
 			// we need to generate context header and propagate it
-			tracingInfoByRequestID, ok := h.tracingContextMapping.Get(req.Header.Get("x-request-id"))
+			tracingInfoByRequestID, ok := h.tracingContextMapping.Get(
+				req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName),
+			)
 			if ok {
 				h.logger.Debugf("Found request-id matching: %#v", tracingInfoByRequestID)
 				tracingContext := tracingInfoByRequestID.(jaeger.SpanContext)
@@ -226,19 +227,21 @@ func (nr *NetHTTPRequest) StartRequest() {
 	if !nr.isInbound {
 		operation = httpRequest.Host + httpRequest.URL.Path
 	}
+	httpConfig := config.GetHTTPConfig()
 	var span opentracing.Span
 	if err != nil {
 		nr.logger.Infof("Carrier extract error: %s", err.Error())
 		span = opentracing.StartSpan(
 			operation,
 		)
+
 		if nr.isInbound {
 			context := span.Context().(jaeger.SpanContext)
 			nr.tracingContextMapping.SetDefault(
-				httpRequest.Header.Get("x-request-id"),
+				httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
 				context,
 			)
-			httpConfig := config.GetHTTPConfig()
+
 			if len(httpConfig.HeadersMap) > 0 {
 				// prefer httpConfig iteration, headers are already parsed into a map
 				for headerName, tagName := range httpConfig.HeadersMap {
@@ -267,7 +270,7 @@ func (nr *NetHTTPRequest) StartRequest() {
 		if nr.isInbound {
 			context := wireContext.(jaeger.SpanContext)
 			nr.tracingContextMapping.SetDefault(
-				httpRequest.Header.Get("x-request-id"),
+				httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
 				context,
 			)
 		}
@@ -321,7 +324,7 @@ func (nr *NetHTTPRequest) fillSpan(span opentracing.Span, req *http.Request, res
 		if userAgent := req.Header.Get("User-Agent"); userAgent != "" {
 			span.SetTag("http.user_agent", userAgent)
 		}
-		if requestID := req.Header.Get("X-Request-ID"); requestID != "" {
+		if requestID := req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName); requestID != "" {
 			span.SetTag("http.request_id", requestID)
 		}
 	}

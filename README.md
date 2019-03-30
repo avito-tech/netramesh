@@ -7,7 +7,7 @@
 Ultra light service mesh has main goals:
 
 - high performance
-- observability (jaeger distributed tracing)
+- observability (Jaeger distributed tracing)
 - simplicity of operation
 - unlimited scalability
 - any infrastructure compatibility
@@ -64,12 +64,13 @@ Switch name| Description
 
 Env name| Description
 ---|---
-NETRA_LOGGER_LEVEL | logger level (default info), supported values: debug, info, warning, error, fatal
-NETRA_PORT | netra sidecar listen port (default 14956)
-NETRA_PPROF_PORT | netra sidecar pprof port (default 14957)
-NETRA_TRACING_CONTEXT_EXPIRATION_MILLISECONDS | tracing context mapping cache expiration (default 5000)
-NETRA_TRACING_CONTEXT_CLEANUP_INTERVAL | tracing context cleanup interval (default 1000)
+NETRA_LOGGER_LEVEL | logger level (defaults to info), supported values: debug, info, warning, error, fatal
+NETRA_PORT | netra sidecar listen port (defaults to 14956)
+NETRA_PPROF_PORT | netra sidecar pprof port (defaults to 14957)
+NETRA_TRACING_CONTEXT_EXPIRATION_MILLISECONDS | tracing context mapping cache expiration (defaults to 5000)
+NETRA_TRACING_CONTEXT_CLEANUP_INTERVAL | tracing context cleanup interval (defaults to 1000)
 NETRA_HTTP_PORTS | comma separated ports to determine as HTTP1 protocol (no default)
+NETRA_HTTP_REQUEST_ID_HEADER_NAME | header name to match inbound and outbound requests. Applications should propagate it (defaults to X-Request-Id)
 HTTP_HEADER_TAG_MAP | comma separated HTTP header to jaeger span tag conversion (example: `x-session:http.session,x-mobile-info:http.x-mobile-info`)
 HTTP_COOKIE_TAG_MAP | comma separated HTTP cookie value to span tag conversion (example: `sess:http.cookies.sess`)
 
