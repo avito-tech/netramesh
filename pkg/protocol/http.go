@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"container/list"
 	"io"
-	"net/http"
 	"strings"
 	"sync"
 
@@ -15,7 +14,7 @@ import (
 	"github.com/uber/jaeger-client-go"
 
 	"github.com/Lookyan/netramesh/internal/config"
-	//myhttp "github.com/Lookyan/netramesh/pkg/http"
+	nhttp "github.com/Lookyan/netramesh/pkg/http"
 	"github.com/Lookyan/netramesh/pkg/log"
 )
 
@@ -58,7 +57,7 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 	defer readerPool.Put(bufioHTTPReader)
 	for {
 		tmpWriter.Start()
-		req, err := http.ReadRequest(bufioHTTPReader)
+		req, err := nhttp.ReadRequest(bufioHTTPReader)
 		if err == io.EOF {
 			h.logger.Debug("EOF while parsing request HTTP")
 			return
@@ -134,7 +133,7 @@ func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netReque
 	defer readerPool.Put(bufioHTTPReader)
 	for {
 		tmpWriter.Start()
-		resp, err := http.ReadResponse(bufioHTTPReader, nil)
+		resp, err := nhttp.ReadResponse(bufioHTTPReader, nil)
 		if err == io.EOF {
 			h.logger.Debug("EOF while parsing response HTTP")
 			netHTTPRequest.StopRequest()
@@ -173,7 +172,7 @@ func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netReque
 
 		// if method == HEAD and content-length != 0, it will hang on read with LimitReader, handle this:
 		rq := netHTTPRequest.httpRequests.Peek()
-		if rq != nil && rq.(*http.Request).Method == http.MethodHead {
+		if rq != nil && rq.(*nhttp.Request).Method == nhttp.MethodHead {
 			err = resp.Write(w)
 		} else {
 			bufioWriter := writerPool.Get().(*bufio.Writer)
@@ -218,7 +217,7 @@ func (nr *NetHTTPRequest) StartRequest() {
 	if request == nil {
 		return
 	}
-	httpRequest := request.(*http.Request)
+	httpRequest := request.(*nhttp.Request)
 	carrier := opentracing.HTTPHeadersCarrier(httpRequest.Header)
 	nr.logger.Debugf("Extraction header value: %s", httpRequest.Header.Get(jaeger.TraceContextHeaderName))
 	wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
@@ -287,8 +286,8 @@ func (nr *NetHTTPRequest) StopRequest() {
 	request := nr.httpRequests.Pop()
 	response := nr.httpResponses.Pop()
 	if request != nil && response != nil {
-		httpRequest := request.(*http.Request)
-		httpResponse := response.(*http.Response)
+		httpRequest := request.(*nhttp.Request)
+		httpResponse := response.(*nhttp.Response)
 		span := nr.spans.Pop()
 		if span != nil {
 			requestSpan := span.(opentracing.Span)
@@ -298,7 +297,7 @@ func (nr *NetHTTPRequest) StopRequest() {
 	}
 
 	if request != nil && response == nil {
-		httpRequest := request.(*http.Request)
+		httpRequest := request.(*nhttp.Request)
 		span := nr.spans.Pop()
 		if span != nil {
 			requestSpan := span.(opentracing.Span)
@@ -310,7 +309,7 @@ func (nr *NetHTTPRequest) StopRequest() {
 	}
 }
 
-func (nr *NetHTTPRequest) fillSpan(span opentracing.Span, req *http.Request, resp *http.Response) {
+func (nr *NetHTTPRequest) fillSpan(span opentracing.Span, req *nhttp.Request, resp *nhttp.Response) {
 	if nr.isInbound {
 		span.SetTag("span.kind", "server")
 	} else {
@@ -337,11 +336,11 @@ func (nr *NetHTTPRequest) fillSpan(span opentracing.Span, req *http.Request, res
 	}
 }
 
-func (nr *NetHTTPRequest) SetHTTPRequest(r *http.Request) {
+func (nr *NetHTTPRequest) SetHTTPRequest(r *nhttp.Request) {
 	nr.httpRequests.Push(r)
 }
 
-func (nr *NetHTTPRequest) SetHTTPResponse(r *http.Response) {
+func (nr *NetHTTPRequest) SetHTTPResponse(r *nhttp.Response) {
 	nr.httpResponses.Push(r)
 }
 
