@@ -25,6 +25,13 @@ import (
 	"github.com/Lookyan/netramesh/pkg/http/internal"
 )
 
+// ADDED BUFFER POOL (NOT STD LIB)
+var bufferPool = sync.Pool{
+	New: func() interface{} { return make([]byte, 0xffff) },
+}
+
+/////////////////////////////////
+
 // ErrLineTooLong is returned when reading request or response bodies
 // with malformed chunked encoding.
 var ErrLineTooLong = internal.ErrLineTooLong
@@ -353,19 +360,27 @@ func (t *transferWriter) writeBody(w io.Writer) error {
 				w = &internal.FlushAfterChunkWriter{Writer: bw}
 			}
 			cw := internal.NewChunkedWriter(w)
-			_, err = io.Copy(cw, body)
+			buf := bufferPool.Get().([]byte)
+			_, err = io.CopyBuffer(cw, body, buf)
+			bufferPool.Put(buf)
 			if err == nil {
 				err = cw.Close()
 			}
 		} else if t.ContentLength == -1 {
-			ncopy, err = io.Copy(w, body)
+			buf := bufferPool.Get().([]byte)
+			ncopy, err = io.CopyBuffer(w, body, buf)
+			bufferPool.Put(buf)
 		} else {
-			ncopy, err = io.Copy(w, io.LimitReader(body, t.ContentLength))
+			buf := bufferPool.Get().([]byte)
+			ncopy, err = io.CopyBuffer(w, io.LimitReader(body, t.ContentLength), buf)
+			bufferPool.Put(buf)
 			if err != nil {
 				return err
 			}
 			var nextra int64
-			nextra, err = io.Copy(ioutil.Discard, body)
+			buf = bufferPool.Get().([]byte)
+			nextra, err = io.CopyBuffer(ioutil.Discard, body, buf)
+			bufferPool.Put(buf)
 			ncopy += nextra
 		}
 		if err != nil {

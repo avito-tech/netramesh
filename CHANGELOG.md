@@ -1,3 +1,7 @@
+# 0.3.1
+- HTTP parsing moved to vendored stdlib
+- HTTP WriteBody optimized (CopyBuffer used instead of Copy)
+
 # 0.3
 - X-Request-Id exposed to ENV VAR
 
