@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"container/list"
 	"io"
+	"net"
 	"strings"
 	"sync"
 
@@ -47,8 +48,13 @@ func NewHTTPHandler(logger *log.Logger, tracingContextMapping *cache.Cache) *HTT
 }
 
 // HandleRequest handles HTTP request
-func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
+func (h *HTTPHandler) HandleRequest(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool) {
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
+	if isInboundConn {
+		netHTTPRequest.remoteAddr = r.RemoteAddr().String()
+	} else {
+		netHTTPRequest.remoteAddr = w.RemoteAddr().String()
+	}
 	tmpWriter := NewTempWriter()
 	defer tmpWriter.Close()
 	readerWithFallback := io.TeeReader(r, tmpWriter)
@@ -106,6 +112,9 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 				req.Header[jaeger.TraceContextHeaderName] = []string{tracingContext.String()}
 				h.logger.Debugf("Outbound span: %s", tracingContext.String())
 			}
+			if v := req.Header.Get(config.GetHTTPConfig().XSourceHeaderName); v == "" {
+				req.Header.Set(config.GetHTTPConfig().XSourceHeaderName, config.GetHTTPConfig().XSourceValue)
+			}
 		}
 
 		netHTTPRequest.SetHTTPRequest(req)
@@ -123,7 +132,7 @@ func (h *HTTPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netReques
 	}
 }
 
-func (h *HTTPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
+func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool) {
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
 	tmpWriter := NewTempWriter()
 	defer tmpWriter.Close()
@@ -199,6 +208,7 @@ type NetHTTPRequest struct {
 	isInbound             bool
 	tracingContextMapping *cache.Cache
 	logger                *log.Logger
+	remoteAddr            string
 }
 
 func NewNetHTTPRequest(logger *log.Logger, isInbound bool, tracingContextMapping *cache.Cache) *NetHTTPRequest {
@@ -309,12 +319,16 @@ func (nr *NetHTTPRequest) StopRequest() {
 	}
 }
 
-func (nr *NetHTTPRequest) fillSpan(span opentracing.Span, req *nhttp.Request, resp *nhttp.Response) {
+func (nr *NetHTTPRequest) fillSpan(
+	span opentracing.Span,
+	req *nhttp.Request,
+	resp *nhttp.Response) {
 	if nr.isInbound {
 		span.SetTag("span.kind", "server")
 	} else {
 		span.SetTag("span.kind", "client")
 	}
+	span.SetTag("remote_addr", nr.remoteAddr)
 	if req != nil {
 		span.SetTag("http.host", req.Host)
 		span.SetTag("http.path", req.URL.String())

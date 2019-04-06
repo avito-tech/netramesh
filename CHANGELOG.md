@@ -1,3 +1,7 @@
+# 0.4
+- Added remote_addr tag to Jaeger
+- Added X-Source header to propagate origin service name which can be customized through `NETRA_HTTP_X_SOURCE_HEADER_NAME` and `NETRA_HTTP_X_SOURCE_VALUE` env variable
+
 # 0.3.1
 - HTTP parsing moved to vendored stdlib
 - HTTP WriteBody optimized (CopyBuffer used instead of Copy)
