@@ -11,11 +11,14 @@ import (
 
 const (
 	defaultRequestIdHeaderName = "X-Request-Id"
+	defaultXSourceName         = "X-Source"
+	defaultXSourceValue        = "netra"
 )
 
 type NetraConfig struct {
 	Port                          int
 	PprofPort                     int
+	ServiceName                   string
 	TracingContextExpiration      time.Duration
 	TracingContextCleanupInterval time.Duration
 	LoggerLevel                   log.Level
@@ -34,16 +37,24 @@ func GetNetraConfig() NetraConfig {
 	return netraConfig
 }
 
+func SetServiceName(serviceName string) {
+	netraConfig.ServiceName = serviceName
+}
+
 type HTTPConfig struct {
 	HeadersMap          map[string]string
 	CookiesMap          map[string]string
 	RequestIdHeaderName string
+	XSourceHeaderName   string
+	XSourceValue        string
 }
 
 var httpConfig = HTTPConfig{
 	HeadersMap:          map[string]string{},
 	CookiesMap:          map[string]string{},
 	RequestIdHeaderName: defaultRequestIdHeaderName,
+	XSourceHeaderName:   defaultXSourceName,
+	XSourceValue:        defaultXSourceValue,
 }
 
 func GetHTTPConfig() HTTPConfig {
@@ -59,6 +70,8 @@ const (
 	envHttpHeaderTagMap                   = "HTTP_HEADER_TAG_MAP"
 	envHttpCookieTagMap                   = "HTTP_COOKIE_TAG_MAP"
 	envHttpRequestIdHeaderName            = "NETRA_HTTP_REQUEST_ID_HEADER_NAME"
+	envHttpXSourceHeaderName              = "NETRA_HTTP_X_SOURCE_HEADER_NAME"
+	envHTTPXSourceValue                   = "NETRA_HTTP_X_SOURCE_VALUE"
 )
 
 func GlobalConfigFromENV(logger *log.Logger) error {
@@ -125,6 +138,12 @@ func GlobalConfigFromENV(logger *log.Logger) error {
 	}
 	if v := os.Getenv(envHttpRequestIdHeaderName); v != "" {
 		httpConfig.RequestIdHeaderName = v
+	}
+	if v := os.Getenv(envHttpXSourceHeaderName); v != "" {
+		httpConfig.XSourceHeaderName = v
+	}
+	if v := os.Getenv(envHTTPXSourceValue); v != "" {
+		httpConfig.XSourceValue = v
 	}
 
 	return nil

@@ -29,6 +29,7 @@ func main() {
 	if *serviceName == "" {
 		logger.Fatal("service-name flag should be set")
 	}
+	config.SetServiceName(*serviceName)
 
 	err = config.GlobalConfigFromENV(logger)
 	if err != nil {

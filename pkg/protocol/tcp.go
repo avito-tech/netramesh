@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"io"
+	"net"
 
 	"github.com/Lookyan/netramesh/pkg/log"
 )
@@ -16,7 +17,7 @@ func NewTCPHandler(logger *log.Logger) *TCPHandler {
 	}
 }
 
-func (h *TCPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
+func (h *TCPHandler) HandleRequest(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool) {
 	buf := bufferPool.Get().([]byte)
 	written, err := io.CopyBuffer(w, r, buf)
 	bufferPool.Put(buf)
@@ -26,7 +27,7 @@ func (h *TCPHandler) HandleRequest(r io.ReadCloser, w io.WriteCloser, netRequest
 	}
 }
 
-func (h *TCPHandler) HandleResponse(r io.ReadCloser, w io.WriteCloser, netRequest NetRequest, isInboundConn bool) {
+func (h *TCPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool) {
 	buf := bufferPool.Get().([]byte)
 	written, err := io.CopyBuffer(w, r, buf)
 	bufferPool.Put(buf)

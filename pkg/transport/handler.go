@@ -1,7 +1,6 @@
 package transport
 
 import (
-	"io"
 	"net"
 	"os"
 	"strconv"
@@ -17,22 +16,6 @@ import (
 )
 
 const SO_ORIGINAL_DST = 80
-
-type TCPCopyBucket struct {
-	R             io.ReadWriteCloser
-	W             io.ReadWriteCloser
-	Initiator     bool
-	NetRequest    protocol.NetRequest
-	NetHandler    protocol.NetHandler
-	IsInBoundConn bool
-	Done          chan struct{}
-}
-
-var tcpCopyBucketPool = sync.Pool{
-	New: func() interface{} {
-		return &TCPCopyBucket{}
-	},
-}
 
 var addrPool = &sync.Pool{
 	New: func() interface{} {
@@ -58,7 +41,6 @@ func TcpCopy(
 	f.Close()
 	closeConn(logger, r)
 	closeConn(logger, w)
-	//done <- struct{}{}
 }
 
 func HandleConnection(
@@ -66,7 +48,6 @@ func HandleConnection(
 	conn *net.TCPConn,
 	ec *estabcache.EstablishedCache,
 	tracingContextMapping *cache.Cache,
-	//tcpCopyPool *ants.PoolWithFunc
 ) {
 	if conn == nil {
 		return
@@ -142,7 +123,6 @@ func HandleConnection(
 	//ec.Add(dstAddr)
 	go TcpCopy(logger, conn, targetConn, true, netRequest, netHandler, isInBoundConn, f)
 	go TcpCopy(logger, targetConn, conn, false, netRequest, netHandler, isInBoundConn, f)
-	//<-done
 
 	//ec.Remove(dstAddr)
 }
