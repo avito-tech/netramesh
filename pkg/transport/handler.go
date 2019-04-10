@@ -99,13 +99,7 @@ func HandleConnection(
 	if err != nil {
 		logger.Warningf("Error while resolving tcp addr %s", dstAddr)
 	}
-	targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
-	if err != nil {
-		logger.Warning(err.Error())
-		f.Close()
-		closeConn(logger, conn)
-		return
-	}
+
 	//defer func() {
 	//	logger.Debug("Closing target conn")
 	//	// same logic as for source tcp connection
@@ -121,7 +115,19 @@ func HandleConnection(
 	netHandler := protocol.GetNetworkHandler(p, logger, tracingContextMapping)
 
 	//ec.Add(dstAddr)
-	go TcpCopy(logger, conn, targetConn, true, netRequest, netHandler, isInBoundConn, f)
+	addrCh := make(chan string)
+	go TcpCopy(logger, conn, targetConn, true, netRequest, netHandler, isInBoundConn, f, addrCh)
+
+	newAddr := <- addrCh
+	targetConn, err := net.DialTCP("tcp", nil, newAddr)
+	if err != nil {
+		logger.Warning(err.Error())
+		f.Close()
+		closeConn(logger, conn)
+		return
+	}
+
+	connCh <- targetConn
 	go TcpCopy(logger, targetConn, conn, false, netRequest, netHandler, isInBoundConn, f)
 
 	//ec.Remove(dstAddr)
