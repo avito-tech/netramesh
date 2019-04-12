@@ -5,6 +5,5 @@
 .gitignore
 CHANGELOG.md
 Dockerfile-init
-iptables-rules.sh
 Makefile
 README.md
