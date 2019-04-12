@@ -1,13 +1,32 @@
-FROM golang:1.11 as builder
+FROM golang:1.12 AS builder
 
-COPY . /go/src/github.com/Lookyan/netramesh
-WORKDIR /go/src/github.com/Lookyan/netramesh
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o main ./cmd/main.go
+WORKDIR /src
+
+ADD . .
+
+ENV GOOS        linux
+ENV GOARCH      amd64
+ENV CGO_ENABLED 0
+
+RUN go build  -o /go/bin/netramesh \
+              -mod vendor \
+              -a -installsuffix cgo \
+              -ldflags '-extldflags "-static"' \
+              ./cmd/main.go
 
 
-FROM alpine
+FROM alpine:latest AS service
+
+LABEL maintainers="Alexander Lukyanchenko <digwnews@gmail.com>, \
+Mikhail Leonov <lm@kodix.ru>, \
+Kamil Samigullin <kamil@samigullin.info>"
+
+RUN adduser -D -H -u 1000 service
+
+USER service
+
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /go/src/github.com/Lookyan/netramesh/main /app/
-WORKDIR /app
+COPY --from=builder /go/bin/netramesh /usr/local/bin/
 
-ENTRYPOINT ["./main"]
+ENTRYPOINT [ "netramesh" ]
+CMD        [ "-h" ]

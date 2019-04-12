@@ -28,7 +28,7 @@ spec:
       - command:
           - "sh"
           - "-c"
-          - "./main --service-name ${POD_NAMESPACE}.$(echo ${POD_NAME} | sed -e 's/-[a-z0-9]*-[a-z0-9]*$//g')"
+          - "netramesh --service-name ${POD_NAMESPACE}.$(echo ${POD_NAME} | sed -e 's/-[a-z0-9]*-[a-z0-9]*$//g')"
         env:
         - name: POD_NAME
           valueFrom:
