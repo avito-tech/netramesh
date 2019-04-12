@@ -22,6 +22,7 @@ Mikhail Leonov <lm@kodix.ru>, \
 Kamil Samigullin <kamil@samigullin.info>"
 
 RUN adduser -D -H -u 1000 service
+
 USER service
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
