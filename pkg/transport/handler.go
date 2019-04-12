@@ -8,11 +8,10 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/patrickmn/go-cache"
-
 	"github.com/Lookyan/netramesh/pkg/estabcache"
 	"github.com/Lookyan/netramesh/pkg/log"
 	"github.com/Lookyan/netramesh/pkg/protocol"
+	"github.com/patrickmn/go-cache"
 )
 
 const SO_ORIGINAL_DST = 80

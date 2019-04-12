@@ -3,20 +3,19 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/Lookyan/netramesh/pkg/protocol"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/patrickmn/go-cache"
-	jaegercfg "github.com/uber/jaeger-client-go/config"
-
 	"github.com/Lookyan/netramesh/internal/config"
 	"github.com/Lookyan/netramesh/pkg/estabcache"
 	"github.com/Lookyan/netramesh/pkg/log"
+	"github.com/Lookyan/netramesh/pkg/protocol"
 	"github.com/Lookyan/netramesh/pkg/transport"
+	"github.com/opentracing/opentracing-go"
+	"github.com/patrickmn/go-cache"
+	jaegercfg "github.com/uber/jaeger-client-go/config"
 )
 
 func main() {

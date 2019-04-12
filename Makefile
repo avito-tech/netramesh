@@ -11,7 +11,7 @@ update:
 
 .PHONY: format
 format:
-	@goimports -ungroup -w .
+	@goimports -local golang_org -ungroup -w ./cmd/ ./internal/ ./pkg/
 
 
 .PHONY: test
