@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/Lookyan/netramesh/pkg/protocol"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -16,6 +15,7 @@ import (
 	"github.com/Lookyan/netramesh/internal/config"
 	"github.com/Lookyan/netramesh/pkg/estabcache"
 	"github.com/Lookyan/netramesh/pkg/log"
+	"github.com/Lookyan/netramesh/pkg/protocol"
 	"github.com/Lookyan/netramesh/pkg/transport"
 )
 
