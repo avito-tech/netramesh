@@ -11,7 +11,7 @@ update:
 
 .PHONY: format
 format:
-	@goimports -local golang_org -ungroup -w ./cmd/ ./internal/ ./pkg/
+	@goimports -local golang_org,github.com/Lookyan/netramesh -ungroup -w ./cmd/ ./internal/ ./pkg/
 
 
 .PHONY: test

@@ -9,13 +9,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Lookyan/netramesh/internal/config"
-	nhttp "github.com/Lookyan/netramesh/pkg/http"
-	"github.com/Lookyan/netramesh/pkg/log"
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 	"github.com/patrickmn/go-cache"
 	"github.com/uber/jaeger-client-go"
+
+	"github.com/Lookyan/netramesh/internal/config"
+	nhttp "github.com/Lookyan/netramesh/pkg/http"
+	"github.com/Lookyan/netramesh/pkg/log"
 )
 
 var dumbReader = bytes.NewReader([]byte{})
