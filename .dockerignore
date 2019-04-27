@@ -1,0 +1,9 @@
+/.circleci
+/examples
+/media
+
+.gitignore
+CHANGELOG.md
+Dockerfile-init
+Makefile
+README.md

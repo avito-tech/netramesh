@@ -20,9 +20,8 @@ import (
 	"sync"
 	"time"
 
-	"golang_org/x/net/http/httpguts"
-
 	"github.com/Lookyan/netramesh/pkg/http/internal"
+	"golang_org/x/net/http/httpguts"
 )
 
 // ADDED BUFFER POOL (NOT STD LIB)
