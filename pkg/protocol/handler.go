@@ -7,7 +7,7 @@ import (
 
 type NetHandler interface {
 	// HandleRequest should get all data from r, process it and write result to w
-	HandleRequest(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool)
+	HandleRequest(r *net.TCPConn, connCh chan *net.TCPConn, addrCh chan string, netRequest NetRequest, isInboundConn bool, originalDst string)
 	// HandleResponse should get all data from r, process it and write result to w
 	HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool)
 }

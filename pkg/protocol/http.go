@@ -48,13 +48,10 @@ func NewHTTPHandler(logger *log.Logger, tracingContextMapping *cache.Cache) *HTT
 }
 
 // HandleRequest handles HTTP request
-func (h *HTTPHandler) HandleRequest(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool) {
+func (h *HTTPHandler) HandleRequest(r *net.TCPConn, connCh chan *net.TCPConn, addrCh chan string, netRequest NetRequest, isInboundConn bool, originalDst string) {
+	var w *net.TCPConn
+
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
-	if isInboundConn {
-		netHTTPRequest.remoteAddr = r.RemoteAddr().String()
-	} else {
-		netHTTPRequest.remoteAddr = w.RemoteAddr().String()
-	}
 	tmpWriter := NewTempWriter()
 	defer tmpWriter.Close()
 	readerWithFallback := io.TeeReader(r, tmpWriter)
@@ -67,6 +64,17 @@ func (h *HTTPHandler) HandleRequest(r *net.TCPConn, w *net.TCPConn, netRequest N
 		if err == io.EOF {
 			h.logger.Debug("EOF while parsing request HTTP")
 			return
+		}
+		if w == nil {
+			// here we can override destination (DNS allowed)
+			addrCh <- originalDst
+			w = <-connCh
+
+			if isInboundConn {
+				netHTTPRequest.remoteAddr = r.RemoteAddr().String()
+			} else {
+				netHTTPRequest.remoteAddr = w.RemoteAddr().String()
+			}
 		}
 		if err != nil {
 			h.logger.Warningf("Error while parsing http request '%s'", err.Error())

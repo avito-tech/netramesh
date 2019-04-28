@@ -17,9 +17,11 @@ func NewTCPHandler(logger *log.Logger) *TCPHandler {
 	}
 }
 
-func (h *TCPHandler) HandleRequest(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool) {
-	buf := bufferPool.Get().([]byte)
+func (h *TCPHandler) HandleRequest(r *net.TCPConn, connCh chan *net.TCPConn, addrCh chan string, netRequest NetRequest, isInboundConn bool, originalDst string) {
+	addrCh <- originalDst
+	w := <-connCh
 
+	buf := bufferPool.Get().([]byte)
 	written, err := io.CopyBuffer(w, r, buf)
 	bufferPool.Put(buf)
 	h.logger.Debugf("Written: %d", written)

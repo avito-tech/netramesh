@@ -23,21 +23,45 @@ var addrPool = &sync.Pool{
 	},
 }
 
-func TcpCopy(
+var addrChPool = &sync.Pool{
+	New: func() interface{} {
+		return make(chan string)
+	},
+}
+
+var connChPool = &sync.Pool{
+	New: func() interface{} {
+		return make(chan *net.TCPConn)
+	},
+}
+
+func TcpCopyRequest(
+	logger *log.Logger,
+	r *net.TCPConn,
+	connCh chan *net.TCPConn,
+	netRequest protocol.NetRequest,
+	netHandler protocol.NetHandler,
+	isInBoundConn bool,
+	f *os.File,
+	addrCh chan string,
+	originalDst string,
+) {
+	netHandler.HandleRequest(r, connCh, addrCh, netRequest, isInBoundConn, originalDst)
+	f.Close()
+	closeConn(logger, r)
+	//closeConn(logger, w)
+}
+
+func TcpCopyResponse(
 	logger *log.Logger,
 	r *net.TCPConn,
 	w *net.TCPConn,
-	initiator bool,
 	netRequest protocol.NetRequest,
 	netHandler protocol.NetHandler,
 	isInBoundConn bool,
 	f *os.File,
 ) {
-	if initiator {
-		netHandler.HandleRequest(r, w, netRequest, isInBoundConn)
-	} else {
-		netHandler.HandleResponse(r, w, netRequest, isInBoundConn)
-	}
+	netHandler.HandleResponse(r, w, netRequest, isInBoundConn)
 	f.Close()
 	closeConn(logger, r)
 	closeConn(logger, w)
@@ -91,14 +115,9 @@ func HandleConnection(
 	dstAddrBuilder = append(dstAddrBuilder, ipv4...)
 	dstAddrBuilder = append(dstAddrBuilder, ':')
 	dstAddrBuilder = append(dstAddrBuilder, strconv.Itoa(int(port))...)
-	dstAddr := string(dstAddrBuilder)
+	originalDstAddr := string(dstAddrBuilder)
 	dstAddrBuilder = dstAddrBuilder[:0]
 	addrPool.Put(dstAddrBuilder)
-
-	tcpDstAddr, err := net.ResolveTCPAddr("tcp", dstAddr)
-	if err != nil {
-		logger.Warningf("Error while resolving tcp addr %s", dstAddr)
-	}
 
 	//defer func() {
 	//	logger.Debug("Closing target conn")
@@ -110,16 +129,22 @@ func HandleConnection(
 	//}()
 
 	// determine protocol and choose logic
-	p := protocol.Determine(dstAddr)
+	p := protocol.Determine(originalDstAddr)
 	netRequest := protocol.GetNetRequest(p, isInBoundConn, logger, tracingContextMapping)
 	netHandler := protocol.GetNetworkHandler(p, logger, tracingContextMapping)
 
 	//ec.Add(dstAddr)
-	addrCh := make(chan string)
-	go TcpCopy(logger, conn, targetConn, true, netRequest, netHandler, isInBoundConn, f, addrCh)
 
-	newAddr := <- addrCh
-	targetConn, err := net.DialTCP("tcp", nil, newAddr)
+	addrCh := addrChPool.Get().(chan string)
+	connCh := connChPool.Get().(chan *net.TCPConn)
+	go TcpCopyRequest(logger, conn, connCh, netRequest, netHandler, isInBoundConn, f, addrCh, originalDstAddr)
+
+	dstAddr := <-addrCh
+	tcpDstAddr, err := net.ResolveTCPAddr("tcp", dstAddr)
+	if err != nil {
+		logger.Warningf("Error while resolving tcp addr %s", originalDstAddr)
+	}
+	targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
 	if err != nil {
 		logger.Warning(err.Error())
 		f.Close()
@@ -128,8 +153,10 @@ func HandleConnection(
 	}
 
 	connCh <- targetConn
-	go TcpCopy(logger, targetConn, conn, false, netRequest, netHandler, isInBoundConn, f)
+	go TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
 
+	addrChPool.Put(addrCh)
+	connChPool.Put(connCh)
 	//ec.Remove(dstAddr)
 }
 
