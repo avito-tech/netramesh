@@ -17,9 +17,18 @@ func NewTCPHandler(logger *log.Logger) *TCPHandler {
 	}
 }
 
-func (h *TCPHandler) HandleRequest(r *net.TCPConn, connCh chan *net.TCPConn, addrCh chan string, netRequest NetRequest, isInboundConn bool, originalDst string) {
+func (h *TCPHandler) HandleRequest(
+	r *net.TCPConn,
+	connCh chan *net.TCPConn,
+	addrCh chan string,
+	netRequest NetRequest,
+	isInboundConn bool,
+	originalDst string) *net.TCPConn {
 	addrCh <- originalDst
 	w := <-connCh
+	if w == nil {
+		return w
+	}
 
 	buf := bufferPool.Get().([]byte)
 	written, err := io.CopyBuffer(w, r, buf)
@@ -28,6 +37,7 @@ func (h *TCPHandler) HandleRequest(r *net.TCPConn, connCh chan *net.TCPConn, add
 	if err != nil {
 		h.logger.Debugf("Err CopyBuffer: %s", err.Error())
 	}
+	return w
 }
 
 func (h *TCPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool) {

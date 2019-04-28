@@ -48,7 +48,14 @@ func NewHTTPHandler(logger *log.Logger, tracingContextMapping *cache.Cache) *HTT
 }
 
 // HandleRequest handles HTTP request
-func (h *HTTPHandler) HandleRequest(r *net.TCPConn, connCh chan *net.TCPConn, addrCh chan string, netRequest NetRequest, isInboundConn bool, originalDst string) {
+func (h *HTTPHandler) HandleRequest(
+	r *net.TCPConn,
+	connCh chan *net.TCPConn,
+	addrCh chan string,
+	netRequest NetRequest,
+	isInboundConn bool,
+	originalDst string) *net.TCPConn {
+
 	var w *net.TCPConn
 
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
@@ -63,12 +70,15 @@ func (h *HTTPHandler) HandleRequest(r *net.TCPConn, connCh chan *net.TCPConn, ad
 		req, err := nhttp.ReadRequest(bufioHTTPReader)
 		if err == io.EOF {
 			h.logger.Debug("EOF while parsing request HTTP")
-			return
+			return w
 		}
 		if w == nil {
 			// here we can override destination (DNS allowed)
 			addrCh <- originalDst
 			w = <-connCh
+			if w == nil {
+				return w
+			}
 
 			if isInboundConn {
 				netHTTPRequest.remoteAddr = r.RemoteAddr().String()
@@ -87,7 +97,7 @@ func (h *HTTPHandler) HandleRequest(r *net.TCPConn, connCh chan *net.TCPConn, ad
 			if err != nil {
 				h.logger.Warning(err.Error())
 			}
-			return
+			return w
 		}
 		// avoid ws connections and other upgrade protos
 		if strings.ToLower(req.Header.Get("Connection")) == "upgrade" {
@@ -100,7 +110,7 @@ func (h *HTTPHandler) HandleRequest(r *net.TCPConn, connCh chan *net.TCPConn, ad
 			if err != nil {
 				h.logger.Warning(err.Error())
 			}
-			return
+			return w
 		}
 
 		tmpWriter.Stop()
@@ -138,6 +148,8 @@ func (h *HTTPHandler) HandleRequest(r *net.TCPConn, connCh chan *net.TCPConn, ad
 			h.logger.Errorf("Error while writing request to w: %s", err.Error())
 		}
 	}
+
+	return w
 }
 
 func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool) {

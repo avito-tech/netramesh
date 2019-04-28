@@ -23,18 +23,6 @@ var addrPool = &sync.Pool{
 	},
 }
 
-var addrChPool = &sync.Pool{
-	New: func() interface{} {
-		return make(chan string)
-	},
-}
-
-var connChPool = &sync.Pool{
-	New: func() interface{} {
-		return make(chan *net.TCPConn)
-	},
-}
-
 func TcpCopyRequest(
 	logger *log.Logger,
 	r *net.TCPConn,
@@ -46,10 +34,12 @@ func TcpCopyRequest(
 	addrCh chan string,
 	originalDst string,
 ) {
-	netHandler.HandleRequest(r, connCh, addrCh, netRequest, isInBoundConn, originalDst)
+	w := netHandler.HandleRequest(r, connCh, addrCh, netRequest, isInBoundConn, originalDst)
 	f.Close()
 	closeConn(logger, r)
-	//closeConn(logger, w)
+	if w != nil {
+		closeConn(logger, w)
+	}
 }
 
 func TcpCopyResponse(
@@ -135,8 +125,8 @@ func HandleConnection(
 
 	//ec.Add(dstAddr)
 
-	addrCh := addrChPool.Get().(chan string)
-	connCh := connChPool.Get().(chan *net.TCPConn)
+	addrCh := make(chan string)
+	connCh := make(chan *net.TCPConn)
 	go TcpCopyRequest(logger, conn, connCh, netRequest, netHandler, isInBoundConn, f, addrCh, originalDstAddr)
 
 	dstAddr := <-addrCh
@@ -147,6 +137,7 @@ func HandleConnection(
 	targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
 	if err != nil {
 		logger.Warning(err.Error())
+		connCh <- nil
 		f.Close()
 		closeConn(logger, conn)
 		return
@@ -154,9 +145,6 @@ func HandleConnection(
 
 	connCh <- targetConn
 	go TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
-
-	addrChPool.Put(addrCh)
-	connChPool.Put(connCh)
 	//ec.Remove(dstAddr)
 }
 
