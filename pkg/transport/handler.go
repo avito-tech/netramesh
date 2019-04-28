@@ -23,21 +23,35 @@ var addrPool = &sync.Pool{
 	},
 }
 
-func TcpCopy(
+func TcpCopyRequest(
+	logger *log.Logger,
+	r *net.TCPConn,
+	connCh chan *net.TCPConn,
+	netRequest protocol.NetRequest,
+	netHandler protocol.NetHandler,
+	isInBoundConn bool,
+	f *os.File,
+	addrCh chan string,
+	originalDst string,
+) {
+	w := netHandler.HandleRequest(r, connCh, addrCh, netRequest, isInBoundConn, originalDst)
+	f.Close()
+	closeConn(logger, r)
+	if w != nil {
+		closeConn(logger, w)
+	}
+}
+
+func TcpCopyResponse(
 	logger *log.Logger,
 	r *net.TCPConn,
 	w *net.TCPConn,
-	initiator bool,
 	netRequest protocol.NetRequest,
 	netHandler protocol.NetHandler,
 	isInBoundConn bool,
 	f *os.File,
 ) {
-	if initiator {
-		netHandler.HandleRequest(r, w, netRequest, isInBoundConn)
-	} else {
-		netHandler.HandleResponse(r, w, netRequest, isInBoundConn)
-	}
+	netHandler.HandleResponse(r, w, netRequest, isInBoundConn)
 	f.Close()
 	closeConn(logger, r)
 	closeConn(logger, w)
@@ -91,21 +105,10 @@ func HandleConnection(
 	dstAddrBuilder = append(dstAddrBuilder, ipv4...)
 	dstAddrBuilder = append(dstAddrBuilder, ':')
 	dstAddrBuilder = append(dstAddrBuilder, strconv.Itoa(int(port))...)
-	dstAddr := string(dstAddrBuilder)
+	originalDstAddr := string(dstAddrBuilder)
 	dstAddrBuilder = dstAddrBuilder[:0]
 	addrPool.Put(dstAddrBuilder)
 
-	tcpDstAddr, err := net.ResolveTCPAddr("tcp", dstAddr)
-	if err != nil {
-		logger.Warningf("Error while resolving tcp addr %s", dstAddr)
-	}
-	targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
-	if err != nil {
-		logger.Warning(err.Error())
-		f.Close()
-		closeConn(logger, conn)
-		return
-	}
 	//defer func() {
 	//	logger.Debug("Closing target conn")
 	//	// same logic as for source tcp connection
@@ -116,14 +119,32 @@ func HandleConnection(
 	//}()
 
 	// determine protocol and choose logic
-	p := protocol.Determine(dstAddr)
+	p := protocol.Determine(originalDstAddr)
 	netRequest := protocol.GetNetRequest(p, isInBoundConn, logger, tracingContextMapping)
 	netHandler := protocol.GetNetworkHandler(p, logger, tracingContextMapping)
 
 	//ec.Add(dstAddr)
-	go TcpCopy(logger, conn, targetConn, true, netRequest, netHandler, isInBoundConn, f)
-	go TcpCopy(logger, targetConn, conn, false, netRequest, netHandler, isInBoundConn, f)
 
+	addrCh := make(chan string)
+	connCh := make(chan *net.TCPConn)
+	go TcpCopyRequest(logger, conn, connCh, netRequest, netHandler, isInBoundConn, f, addrCh, originalDstAddr)
+
+	dstAddr := <-addrCh
+	tcpDstAddr, err := net.ResolveTCPAddr("tcp", dstAddr)
+	if err != nil {
+		logger.Warningf("Error while resolving tcp addr %s", originalDstAddr)
+	}
+	targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
+	if err != nil {
+		logger.Warning(err.Error())
+		connCh <- nil
+		f.Close()
+		closeConn(logger, conn)
+		return
+	}
+
+	connCh <- targetConn
+	go TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
 	//ec.Remove(dstAddr)
 }
 
