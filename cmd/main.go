@@ -15,6 +15,7 @@ import (
 	"github.com/Lookyan/netramesh/internal/config"
 	"github.com/Lookyan/netramesh/pkg/estabcache"
 	"github.com/Lookyan/netramesh/pkg/log"
+	"github.com/Lookyan/netramesh/pkg/pool"
 	"github.com/Lookyan/netramesh/pkg/protocol"
 	"github.com/Lookyan/netramesh/pkg/transport"
 )
@@ -76,12 +77,19 @@ func main() {
 
 	protocol.InitHandlerRequest(logger, tracingContextMapping)
 
+	gPool := pool.New(100)
+
 	for {
 		conn, err := ln.AcceptTCP()
 		if err != nil {
 			logger.Warning(err.Error())
 			continue
 		}
-		go transport.HandleConnection(logger, conn, establishedCache, tracingContextMapping)
+		//go transport.HandleConnection(logger, conn, establishedCache, tracingContextMapping)
+		gPool.Run(
+			func() {
+				transport.HandleConnection(logger, conn, establishedCache, tracingContextMapping, gPool)
+			},
+		)
 	}
 }
