@@ -10,6 +10,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/patrickmn/go-cache"
+	_ "github.com/prometheus/client_golang/prometheus/promhttp"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
 
 	"github.com/Lookyan/netramesh/internal/config"
