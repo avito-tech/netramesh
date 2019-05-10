@@ -13,6 +13,7 @@ import (
 	"github.com/Lookyan/netramesh/internal/config"
 	"github.com/Lookyan/netramesh/pkg/estabcache"
 	"github.com/Lookyan/netramesh/pkg/log"
+	"github.com/Lookyan/netramesh/pkg/pool"
 	"github.com/Lookyan/netramesh/pkg/protocol"
 )
 
@@ -65,6 +66,7 @@ func HandleConnection(
 	ec *estabcache.EstablishedCache,
 	tracingContextMapping *cache.Cache,
 	routingInfoContextMapping *cache.Cache,
+	gPool *pool.Pool,
 ) {
 	if conn == nil {
 		return
@@ -121,17 +123,31 @@ func HandleConnection(
 	if config.GetHTTPConfig().RoutingEnabled {
 		addrCh := make(chan string)
 		connCh := make(chan *net.TCPConn)
-		go TcpCopyRequest(
-			logger,
-			conn,
-			nil,
-			connCh,
-			netRequest,
-			netHandler,
-			isInBoundConn,
-			f,
-			addrCh,
-			originalDstAddr)
+		gPool.Run(
+			func(){
+				TcpCopyRequest(
+					logger,
+					conn,
+					nil,
+					connCh,
+					netRequest,
+					netHandler,
+					isInBoundConn,
+					f,
+					addrCh,
+					originalDstAddr)
+			})
+		//go TcpCopyRequest(
+		//	logger,
+		//	conn,
+		//	nil,
+		//	connCh,
+		//	netRequest,
+		//	netHandler,
+		//	isInBoundConn,
+		//	f,
+		//	addrCh,
+		//	originalDstAddr)
 
 		dstAddr := <-addrCh
 
@@ -153,7 +169,11 @@ func HandleConnection(
 		}
 
 		connCh <- targetConn
-		go TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
+		gPool.Run(
+			func() {
+				TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
+			})
+		//go TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
 	} else {
 		tcpDstAddr, err := net.ResolveTCPAddr("tcp", originalDstAddr)
 		if err != nil {
@@ -170,19 +190,35 @@ func HandleConnection(
 			return
 		}
 
-		go TcpCopyRequest(
-			logger,
-			conn,
-			targetConn,
-			nil,
-			netRequest,
-			netHandler,
-			isInBoundConn,
-			f,
-			nil,
-			originalDstAddr)
+		gPool.Run(func() {
+			TcpCopyRequest(
+				logger,
+				conn,
+				targetConn,
+				nil,
+				netRequest,
+				netHandler,
+				isInBoundConn,
+				f,
+				nil,
+				originalDstAddr)
+		})
+		//go TcpCopyRequest(
+		//	logger,
+		//	conn,
+		//	targetConn,
+		//	nil,
+		//	netRequest,
+		//	netHandler,
+		//	isInBoundConn,
+		//	f,
+		//	nil,
+		//	originalDstAddr)
 
-		go TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
+		gPool.Run(func() {
+			TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
+		})
+		//go TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
 	}
 
 	//ec.Remove(dstAddr)

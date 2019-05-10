@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/Lookyan/netramesh/pkg/pool"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -88,6 +89,8 @@ func main() {
 		5*time.Second,
 	)
 
+	gPool := pool.New(100)
+
 	protocol.InitHandlerRequest(logger, tracingContextMapping, routingInfoContextMapping)
 
 	for {
@@ -96,11 +99,23 @@ func main() {
 			logger.Warning(err.Error())
 			continue
 		}
-		go transport.HandleConnection(
-			logger,
-			conn,
-			establishedCache,
-			tracingContextMapping,
-			routingInfoContextMapping)
+		gPool.Run(
+			func() {
+				transport.HandleConnection(
+					logger,
+					conn,
+					establishedCache,
+					tracingContextMapping,
+					routingInfoContextMapping,
+					gPool)
+			},
+			)
+
+		//go transport.HandleConnection(
+		//	logger,
+		//	conn,
+		//	establishedCache,
+		//	tracingContextMapping,
+		//	routingInfoContextMapping)
 	}
 }
