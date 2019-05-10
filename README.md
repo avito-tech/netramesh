@@ -70,11 +70,18 @@ NETRA_PPROF_PORT | netra sidecar pprof port (defaults to 14957)
 NETRA_TRACING_CONTEXT_EXPIRATION_MILLISECONDS | tracing context mapping cache expiration (defaults to 5000)
 NETRA_TRACING_CONTEXT_CLEANUP_INTERVAL | tracing context cleanup interval (defaults to 1000)
 NETRA_HTTP_PORTS | comma separated ports to determine as HTTP1 protocol (no default)
-NETRA_HTTP_REQUEST_ID_HEADER_NAME | header name to match inbound and outbound requests. Applications should propagate it (defaults to X-Request-Id)
-HTTP_HEADER_TAG_MAP | comma separated HTTP header to jaeger span tag conversion (example: `x-session:http.session,x-mobile-info:http.x-mobile-info`)
+NETRA_HTTP_REQUEST_ID_HEADER_NAME | header name to match inbound and outbound requests. Applications should propagate it
+ (defaults to X-Request-Id)
+HTTP_HEADER_TAG_MAP | comma separated HTTP header to jaeger span tag conversion (example: 
+`x-session:http.session,x-mobile-info:http.x-mobile-info`)
 HTTP_COOKIE_TAG_MAP | comma separated HTTP cookie value to span tag conversion (example: `sess:http.cookies.sess`)
-NETRA_HTTP_X_SOURCE_HEADER_NAME | source HTTP header name. Automatically added to each outbound request in case this header absent in request (defaults to X-Source)
+NETRA_HTTP_X_SOURCE_HEADER_NAME | source HTTP header name. Automatically added to each outbound request in case this 
+header absent in request (defaults to X-Source)
 NETRA_HTTP_X_SOURCE_VALUE | source HTTP header value (defaults to netra)
+NETRA_HTTP_ROUTING_ENABLED | set this to value "true" in to enable HTTP header routing feature (disabled by default)
+NETRA_HTTP_ROUTING_HEADER_NAME | header name for HTTP header routing (defaults to `X-Route`). Value of header should be 
+in the following format: `host1=host2;host3=host4` to route host1 to host2 and host3 to host4.
+
 
 Also it supports all env variables [jaeger go library](https://github.com/jaegertracing/jaeger-client-go#environment-variables) provides.
 

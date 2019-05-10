@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"container/list"
+	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -35,29 +36,32 @@ var writerPool = sync.Pool{
 
 // HTTPHandler process HTTP protocol
 type HTTPHandler struct {
-	tracingContextMapping *cache.Cache
-	logger                *log.Logger
+	tracingContextMapping     *cache.Cache
+	routingInfoContextMapping *cache.Cache
+	logger                    *log.Logger
 }
 
 // NewHTTPHandler returns HTTP handler
-func NewHTTPHandler(logger *log.Logger, tracingContextMapping *cache.Cache) *HTTPHandler {
+func NewHTTPHandler(
+	logger *log.Logger,
+	tracingContextMapping *cache.Cache,
+	routingInfoContextMapping *cache.Cache) *HTTPHandler {
 	return &HTTPHandler{
-		tracingContextMapping: tracingContextMapping,
-		logger:                logger,
+		tracingContextMapping:     tracingContextMapping,
+		routingInfoContextMapping: routingInfoContextMapping,
+		logger:                    logger,
 	}
 }
 
 // HandleRequest handles HTTP request
 func (h *HTTPHandler) HandleRequest(
 	r *net.TCPConn,
+	w *net.TCPConn,
 	connCh chan *net.TCPConn,
 	addrCh chan string,
 	netRequest NetRequest,
 	isInboundConn bool,
 	originalDst string) *net.TCPConn {
-
-	var w *net.TCPConn
-
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
 	tmpWriter := NewTempWriter()
 	defer tmpWriter.Close()
@@ -74,7 +78,22 @@ func (h *HTTPHandler) HandleRequest(
 		}
 		if w == nil {
 			// here we can override destination (DNS allowed)
-			addrCh <- originalDst
+			if config.GetHTTPConfig().RoutingEnabled {
+				if v := req.Header.Get(config.GetHTTPConfig().RoutingHeaderName); v != "" {
+					addr, err := getRoutingDestination(v, req.Host, originalDst)
+					if err != nil {
+						log.Warning(err.Error())
+						addrCh <- originalDst
+					} else {
+						addrCh <- addr
+					}
+				} else {
+					addrCh <- originalDst
+				}
+			} else {
+				addrCh <- originalDst
+			}
+
 			w = <-connCh
 			if w == nil {
 				return w
@@ -125,10 +144,10 @@ func (h *HTTPHandler) HandleRequest(
 				req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName),
 			)
 			if ok {
-				h.logger.Debugf("Found request-id matching: %#v", tracingInfoByRequestID)
+				//h.logger.Debugf("Found request-id matching: %#v", tracingInfoByRequestID)
 				tracingContext := tracingInfoByRequestID.(jaeger.SpanContext)
 				req.Header[jaeger.TraceContextHeaderName] = []string{tracingContext.String()}
-				h.logger.Debugf("Outbound span: %s", tracingContext.String())
+				//h.logger.Debugf("Outbound span: %s", tracingContext.String())
 			}
 			if v := req.Header.Get(config.GetHTTPConfig().XSourceHeaderName); v == "" {
 				req.Header.Set(config.GetHTTPConfig().XSourceHeaderName, config.GetHTTPConfig().XSourceValue)
@@ -249,7 +268,6 @@ func (nr *NetHTTPRequest) StartRequest() {
 	}
 	httpRequest := request.(*nhttp.Request)
 	carrier := opentracing.HTTPHeadersCarrier(httpRequest.Header)
-	nr.logger.Debugf("Extraction header value: %s", httpRequest.Header.Get(jaeger.TraceContextHeaderName))
 	wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
 
 	operation := httpRequest.URL.Path
@@ -295,7 +313,6 @@ func (nr *NetHTTPRequest) StartRequest() {
 			)
 		}
 	} else {
-		nr.logger.Debugf("Wirecontext: %#v", wireContext)
 		if nr.isInbound {
 			context := wireContext.(jaeger.SpanContext)
 			nr.tracingContextMapping.SetDefault(
@@ -418,4 +435,21 @@ func (q *Queue) Peek() interface{} {
 	} else {
 		return nil
 	}
+}
+
+func getRoutingDestination(routingValue string, host string, originalDst string) (string, error) {
+	pairs := strings.Split(routingValue, ";")
+	for _, p := range pairs {
+		keyval := strings.Split(p, "=")
+		if len(keyval) < 2 {
+			return "", fmt.Errorf("malformed routing header: '%s'", routingValue)
+		}
+		if host == keyval[0] {
+			if !strings.Contains(keyval[1], ":") {
+				keyval[1] += ":80"
+			}
+			return keyval[1], nil
+		}
+	}
+	return originalDst, nil
 }
