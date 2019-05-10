@@ -18,6 +18,7 @@ const (
 type NetraConfig struct {
 	Port                          int
 	PprofPort                     int
+	PrometheusPort                uint16
 	ServiceName                   string
 	TracingContextExpiration      time.Duration
 	TracingContextCleanupInterval time.Duration
@@ -28,6 +29,7 @@ type NetraConfig struct {
 var netraConfig = NetraConfig{
 	Port:                          14956,
 	PprofPort:                     14957,
+	PrometheusPort:                14958,
 	TracingContextExpiration:      5 * time.Second,
 	TracingContextCleanupInterval: 1 * time.Second,
 	HTTPProtoPorts:                make(map[string]struct{}),
@@ -64,6 +66,7 @@ func GetHTTPConfig() HTTPConfig {
 const (
 	envNetraPort                          = "NETRA_PORT"
 	envNetraPprofPort                     = "NETRA_PPROF_PORT"
+	envNetraPrometheusPort                = "NETRA_PROMETHEUS_PORT"
 	envNetraTracingContextExpiration      = "NETRA_TRACING_CONTEXT_EXPIRATION_MILLISECONDS"
 	envNetraTracingContextCleanupInterval = "NETRA_TRACING_CONTEXT_CLEANUP_INTERVAL"
 	envNetraHTTPPorts                     = "NETRA_HTTP_PORTS"
@@ -110,6 +113,13 @@ func GlobalConfigFromENV(logger *log.Logger) error {
 			return err
 		}
 		netraConfig.PprofPort = p
+	}
+	if v := os.Getenv(envNetraPrometheusPort); v != "" {
+		p, err := strconv.ParseUint(v, 10, 16)
+		if err != nil {
+			return err
+		}
+		netraConfig.PrometheusPort = uint16(p)
 	}
 	if v := os.Getenv(envNetraTracingContextExpiration); v != "" {
 		exp, err := strconv.Atoi(v)
