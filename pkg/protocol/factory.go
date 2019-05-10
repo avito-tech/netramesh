@@ -10,13 +10,19 @@ var httpHandler *HTTPHandler
 var tcpHandler *TCPHandler
 var netTCPRequest *NetTCPRequest
 
-func InitHandlerRequest(logger *log.Logger, tracingContextMapping *cache.Cache) {
-	httpHandler = NewHTTPHandler(logger, tracingContextMapping)
+func InitHandlerRequest(
+	logger *log.Logger,
+	tracingContextMapping *cache.Cache,
+	routingInfoContextMapping *cache.Cache) {
+	httpHandler = NewHTTPHandler(logger, tracingContextMapping, routingInfoContextMapping)
 	tcpHandler = NewTCPHandler(logger)
 	netTCPRequest = NewNetTCPRequest(logger)
 }
 
-func GetNetworkHandler(proto Proto, logger *log.Logger, tracingContextMapping *cache.Cache) NetHandler {
+func GetNetworkHandler(
+	proto Proto,
+	logger *log.Logger,
+	tracingContextMapping *cache.Cache) NetHandler {
 	switch proto {
 	case HTTPProto:
 		return httpHandler
@@ -27,7 +33,11 @@ func GetNetworkHandler(proto Proto, logger *log.Logger, tracingContextMapping *c
 	}
 }
 
-func GetNetRequest(proto Proto, isInbound bool, logger *log.Logger, tracingContextMapping *cache.Cache) NetRequest {
+func GetNetRequest(
+	proto Proto,
+	isInbound bool,
+	logger *log.Logger,
+	tracingContextMapping *cache.Cache) NetRequest {
 	switch proto {
 	case HTTPProto:
 		return NewNetHTTPRequest(logger, isInbound, tracingContextMapping)

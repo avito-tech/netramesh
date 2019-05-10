@@ -10,6 +10,7 @@ import (
 
 	"github.com/patrickmn/go-cache"
 
+	"github.com/Lookyan/netramesh/internal/config"
 	"github.com/Lookyan/netramesh/pkg/estabcache"
 	"github.com/Lookyan/netramesh/pkg/log"
 	"github.com/Lookyan/netramesh/pkg/protocol"
@@ -26,6 +27,7 @@ var addrPool = &sync.Pool{
 func TcpCopyRequest(
 	logger *log.Logger,
 	r *net.TCPConn,
+	w *net.TCPConn,
 	connCh chan *net.TCPConn,
 	netRequest protocol.NetRequest,
 	netHandler protocol.NetHandler,
@@ -34,7 +36,7 @@ func TcpCopyRequest(
 	addrCh chan string,
 	originalDst string,
 ) {
-	w := netHandler.HandleRequest(r, connCh, addrCh, netRequest, isInBoundConn, originalDst)
+	w = netHandler.HandleRequest(r, w, connCh, addrCh, netRequest, isInBoundConn, originalDst)
 	f.Close()
 	closeConn(logger, r)
 	if w != nil {
@@ -62,6 +64,7 @@ func HandleConnection(
 	conn *net.TCPConn,
 	ec *estabcache.EstablishedCache,
 	tracingContextMapping *cache.Cache,
+	routingInfoContextMapping *cache.Cache,
 ) {
 	if conn == nil {
 		return
@@ -109,42 +112,71 @@ func HandleConnection(
 	dstAddrBuilder = dstAddrBuilder[:0]
 	addrPool.Put(dstAddrBuilder)
 
-	//defer func() {
-	//	logger.Debug("Closing target conn")
-	//	// same logic as for source tcp connection
-	//	targetConn.CloseRead()
-	//	targetConn.CloseWrite()
-	//	targetConn.Close()
-	//	logger.Debug("Closed target conn")
-	//}()
-
 	// determine protocol and choose logic
 	p := protocol.Determine(originalDstAddr)
 	netRequest := protocol.GetNetRequest(p, isInBoundConn, logger, tracingContextMapping)
 	netHandler := protocol.GetNetworkHandler(p, logger, tracingContextMapping)
 
 	//ec.Add(dstAddr)
+	if config.GetHTTPConfig().RoutingEnabled {
+		addrCh := make(chan string)
+		connCh := make(chan *net.TCPConn)
+		go TcpCopyRequest(
+			logger,
+			conn,
+			nil,
+			connCh,
+			netRequest,
+			netHandler,
+			isInBoundConn,
+			f,
+			addrCh,
+			originalDstAddr)
 
-	addrCh := make(chan string)
-	connCh := make(chan *net.TCPConn)
-	go TcpCopyRequest(logger, conn, connCh, netRequest, netHandler, isInBoundConn, f, addrCh, originalDstAddr)
+		dstAddr := <-addrCh
 
-	dstAddr := <-addrCh
-	tcpDstAddr, err := net.ResolveTCPAddr("tcp", dstAddr)
-	if err != nil {
-		logger.Warningf("Error while resolving tcp addr %s", originalDstAddr)
+		tcpDstAddr, err := net.ResolveTCPAddr("tcp", dstAddr)
+		if err != nil {
+			logger.Warningf("Error while resolving tcp addr %s", originalDstAddr)
+		}
+		targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
+		if err != nil {
+			logger.Warning(err.Error())
+			connCh <- nil
+			f.Close()
+			closeConn(logger, conn)
+			return
+		}
+
+		connCh <- targetConn
+		go TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
+	} else {
+		tcpDstAddr, err := net.ResolveTCPAddr("tcp", originalDstAddr)
+		if err != nil {
+			logger.Warningf("Error while resolving tcp addr %s", originalDstAddr)
+		}
+		targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
+		if err != nil {
+			logger.Warning(err.Error())
+			f.Close()
+			closeConn(logger, conn)
+		}
+
+		go TcpCopyRequest(
+			logger,
+			conn,
+			targetConn,
+			nil,
+			netRequest,
+			netHandler,
+			isInBoundConn,
+			f,
+			nil,
+			originalDstAddr)
+
+		go TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
 	}
-	targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
-	if err != nil {
-		logger.Warning(err.Error())
-		connCh <- nil
-		f.Close()
-		closeConn(logger, conn)
-		return
-	}
 
-	connCh <- targetConn
-	go TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
 	//ec.Remove(dstAddr)
 }
 

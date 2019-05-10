@@ -9,6 +9,7 @@ type NetHandler interface {
 	// HandleRequest should get all data from r, process it and write result to w
 	HandleRequest(
 		r *net.TCPConn,
+		w *net.TCPConn,
 		connCh chan *net.TCPConn,
 		addrCh chan string,
 		netRequest NetRequest,

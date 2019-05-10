@@ -12,6 +12,7 @@ import (
 const (
 	defaultRequestIdHeaderName = "X-Request-Id"
 	defaultXSourceName         = "X-Source"
+	defaultRoutingHeaderName   = "X-Route"
 	defaultXSourceValue        = "netra"
 )
 
@@ -49,6 +50,8 @@ type HTTPConfig struct {
 	RequestIdHeaderName string
 	XSourceHeaderName   string
 	XSourceValue        string
+	RoutingEnabled      bool
+	RoutingHeaderName   string
 }
 
 var httpConfig = HTTPConfig{
@@ -57,6 +60,8 @@ var httpConfig = HTTPConfig{
 	RequestIdHeaderName: defaultRequestIdHeaderName,
 	XSourceHeaderName:   defaultXSourceName,
 	XSourceValue:        defaultXSourceValue,
+	RoutingEnabled:      false,
+	RoutingHeaderName:   defaultRoutingHeaderName,
 }
 
 func GetHTTPConfig() HTTPConfig {
@@ -75,6 +80,8 @@ const (
 	envHttpRequestIdHeaderName            = "NETRA_HTTP_REQUEST_ID_HEADER_NAME"
 	envHttpXSourceHeaderName              = "NETRA_HTTP_X_SOURCE_HEADER_NAME"
 	envHTTPXSourceValue                   = "NETRA_HTTP_X_SOURCE_VALUE"
+	envHTTPRoutingEnabled                 = "NETRA_HTTP_ROUTING_ENABLED"
+	envHTTPRoutingHeader                  = "NETRA_HTTP_ROUTING_HEADER_NAME"
 )
 
 func GlobalConfigFromENV(logger *log.Logger) error {
@@ -138,7 +145,7 @@ func GlobalConfigFromENV(logger *log.Logger) error {
 	if v := os.Getenv(envNetraHTTPPorts); v != "" {
 		ports := strings.Split(v, ",")
 		for _, port := range ports {
-			// check that port is int
+			// check whether port is int
 			_, err := strconv.Atoi(port)
 			if err != nil {
 				return err
@@ -154,6 +161,14 @@ func GlobalConfigFromENV(logger *log.Logger) error {
 	}
 	if v := os.Getenv(envHTTPXSourceValue); v != "" {
 		httpConfig.XSourceValue = v
+	}
+	if v := os.Getenv(envHTTPRoutingEnabled); v != "" {
+		if v == "true" {
+			httpConfig.RoutingEnabled = true
+		}
+	}
+	if v := os.Getenv(envHTTPRoutingHeader); v != "" {
+		httpConfig.RoutingHeaderName = v
 	}
 
 	return nil

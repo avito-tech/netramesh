@@ -19,15 +19,19 @@ func NewTCPHandler(logger *log.Logger) *TCPHandler {
 
 func (h *TCPHandler) HandleRequest(
 	r *net.TCPConn,
+	w *net.TCPConn,
 	connCh chan *net.TCPConn,
 	addrCh chan string,
 	netRequest NetRequest,
 	isInboundConn bool,
 	originalDst string) *net.TCPConn {
 	addrCh <- originalDst
-	w := <-connCh
+
 	if w == nil {
-		return w
+		w := <-connCh
+		if w == nil {
+			return w
+		}
 	}
 
 	buf := bufferPool.Get().([]byte)

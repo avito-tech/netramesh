@@ -94,66 +94,114 @@ func (l *Logger) Close() {
 }
 
 func (l *Logger) Debug(v ...interface{}) {
+	if l.outputLevel < DebugLevel {
+		return
+	}
 	l.output(DebugLevel, 0, fmt.Sprint(v...))
 }
 
 func (l *Logger) DebugDepth(depth int, v ...interface{}) {
+	if l.outputLevel < DebugLevel {
+		return
+	}
 	l.output(DebugLevel, depth, fmt.Sprint(v...))
 }
 
 func (l *Logger) Debugln(v ...interface{}) {
+	if l.outputLevel < DebugLevel {
+		return
+	}
 	l.output(DebugLevel, 0, fmt.Sprintln(v...))
 }
 
 func (l *Logger) Debugf(format string, v ...interface{}) {
+	if l.outputLevel < DebugLevel {
+		return
+	}
 	l.output(DebugLevel, 0, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Info(v ...interface{}) {
+	if l.outputLevel < InfoLevel {
+		return
+	}
 	l.output(InfoLevel, 0, fmt.Sprint(v...))
 }
 
 func (l *Logger) InfoDepth(depth int, v ...interface{}) {
+	if l.outputLevel < InfoLevel {
+		return
+	}
 	l.output(InfoLevel, depth, fmt.Sprint(v...))
 }
 
 func (l *Logger) Infoln(v ...interface{}) {
+	if l.outputLevel < InfoLevel {
+		return
+	}
 	l.output(InfoLevel, 0, fmt.Sprintln(v...))
 }
 
 func (l *Logger) Infof(format string, v ...interface{}) {
+	if l.outputLevel < InfoLevel {
+		return
+	}
 	l.output(InfoLevel, 0, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Warning(v ...interface{}) {
+	if l.outputLevel < WarnLevel {
+		return
+	}
 	l.output(WarnLevel, 0, fmt.Sprint(v...))
 }
 
 func (l *Logger) WarningDepth(depth int, v ...interface{}) {
+	if l.outputLevel < WarnLevel {
+		return
+	}
 	l.output(WarnLevel, depth, fmt.Sprint(v...))
 }
 
 func (l *Logger) Warningln(v ...interface{}) {
+	if l.outputLevel < WarnLevel {
+		return
+	}
 	l.output(WarnLevel, 0, fmt.Sprintln(v...))
 }
 
 func (l *Logger) Warningf(format string, v ...interface{}) {
+	if l.outputLevel < WarnLevel {
+		return
+	}
 	l.output(WarnLevel, 0, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Error(v ...interface{}) {
+	if l.outputLevel < ErrorLevel {
+		return
+	}
 	l.output(ErrorLevel, 0, fmt.Sprint(v...))
 }
 
 func (l *Logger) ErrorDepth(depth int, v ...interface{}) {
+	if l.outputLevel < ErrorLevel {
+		return
+	}
 	l.output(ErrorLevel, depth, fmt.Sprint(v...))
 }
 
 func (l *Logger) Errorln(v ...interface{}) {
+	if l.outputLevel < ErrorLevel {
+		return
+	}
 	l.output(ErrorLevel, 0, fmt.Sprintln(v...))
 }
 
 func (l *Logger) Errorf(format string, v ...interface{}) {
+	if l.outputLevel < ErrorLevel {
+		return
+	}
 	l.output(ErrorLevel, 0, fmt.Sprintf(format, v...))
 }
 
