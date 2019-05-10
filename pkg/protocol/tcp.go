@@ -25,9 +25,9 @@ func (h *TCPHandler) HandleRequest(
 	netRequest NetRequest,
 	isInboundConn bool,
 	originalDst string) *net.TCPConn {
-	addrCh <- originalDst
 
 	if w == nil {
+		addrCh <- originalDst
 		w := <-connCh
 		if w == nil {
 			return w

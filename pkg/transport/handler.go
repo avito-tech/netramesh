@@ -138,6 +138,10 @@ func HandleConnection(
 		tcpDstAddr, err := net.ResolveTCPAddr("tcp", dstAddr)
 		if err != nil {
 			logger.Warningf("Error while resolving tcp addr %s", originalDstAddr)
+			connCh <- nil
+			f.Close()
+			closeConn(logger, conn)
+			return
 		}
 		targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
 		if err != nil {
@@ -154,12 +158,16 @@ func HandleConnection(
 		tcpDstAddr, err := net.ResolveTCPAddr("tcp", originalDstAddr)
 		if err != nil {
 			logger.Warningf("Error while resolving tcp addr %s", originalDstAddr)
+			f.Close()
+			closeConn(logger, conn)
+			return
 		}
 		targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
 		if err != nil {
 			logger.Warning(err.Error())
 			f.Close()
 			closeConn(logger, conn)
+			return
 		}
 
 		go TcpCopyRequest(
