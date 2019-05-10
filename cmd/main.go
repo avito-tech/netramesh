@@ -11,6 +11,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/patrickmn/go-cache"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
 
 	"github.com/Lookyan/netramesh/internal/config"
@@ -42,6 +43,12 @@ func main() {
 		logger.Error(
 			http.ListenAndServe(
 				fmt.Sprintf("0.0.0.0:%d", config.GetNetraConfig().PprofPort), nil))
+	}()
+	go func() {
+		// prometheus
+		logger.Error(
+			http.ListenAndServe(
+				fmt.Sprintf("0.0.0.0:%d", config.GetNetraConfig().PrometheusPort), promhttp.Handler()))
 	}()
 
 	os.Setenv("JAEGER_SERVICE_NAME", *serviceName)
