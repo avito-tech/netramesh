@@ -13,5 +13,6 @@ require (
 	github.com/uber-go/atomic v1.3.2 // indirect
 	github.com/uber/jaeger-client-go v2.15.0+incompatible
 	github.com/uber/jaeger-lib v1.5.0 // indirect
+	github.com/valyala/bytebufferpool v1.0.0
 	go.uber.org/atomic v1.3.2 // indirect
 )
