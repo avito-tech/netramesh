@@ -1,3 +1,12 @@
+# 0.5
+- Entrypoint renamed to `netramesh` (breaking change!)
+- Added HTTP routing logic
+- Added prometheus endpoint for metrics
+- Updated golang to 1.12
+- Reduced sidecar docker image size
+- go mod support
+- Some performance optimizations in HTTP parsing
+
 # 0.4
 - Added remote_addr tag to Jaeger
 - Added X-Source header to propagate origin service name which can be customized through `NETRA_HTTP_X_SOURCE_HEADER_NAME` and `NETRA_HTTP_X_SOURCE_VALUE` env variable
