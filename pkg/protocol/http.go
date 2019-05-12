@@ -34,6 +34,12 @@ var writerPool = sync.Pool{
 	},
 }
 
+var queuePool = sync.Pool{
+	New: func() interface{} {
+		return NewQueue()
+	},
+}
+
 // HTTPHandler process HTTP protocol
 type HTTPHandler struct {
 	tracingContextMapping     *cache.Cache
@@ -179,6 +185,7 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 	bufioHTTPReader := readerPool.Get().(*bufio.Reader)
 	bufioHTTPReader.Reset(readerWithFallback)
 	defer readerPool.Put(bufioHTTPReader)
+	defer netHTTPRequest.CleanUp()
 	for {
 		tmpWriter.Start()
 		resp, err := nhttp.ReadResponse(bufioHTTPReader, nil)
@@ -252,9 +259,9 @@ type NetHTTPRequest struct {
 
 func NewNetHTTPRequest(logger *log.Logger, isInbound bool, tracingContextMapping *cache.Cache) *NetHTTPRequest {
 	return &NetHTTPRequest{
-		httpRequests:          NewQueue(),
-		httpResponses:         NewQueue(),
-		spans:                 NewQueue(),
+		httpRequests:          queuePool.Get().(*Queue),
+		httpResponses:         queuePool.Get().(*Queue),
+		spans:                 queuePool.Get().(*Queue),
 		logger:                logger,
 		isInbound:             isInbound,
 		tracingContextMapping: tracingContextMapping,
@@ -356,6 +363,12 @@ func (nr *NetHTTPRequest) StopRequest() {
 	}
 }
 
+func (nr *NetHTTPRequest) CleanUp() {
+	queuePool.Put(nr.httpRequests)
+	queuePool.Put(nr.httpResponses)
+	queuePool.Put(nr.spans)
+}
+
 func (nr *NetHTTPRequest) fillSpan(
 	span opentracing.Span,
 	req *nhttp.Request,
@@ -434,6 +447,12 @@ func (q *Queue) Peek() interface{} {
 		return el.Value
 	} else {
 		return nil
+	}
+}
+
+// Clear clears queue
+func (q *Queue) Clear() {
+	for el := q.Pop(); el != nil; {
 	}
 }
 
