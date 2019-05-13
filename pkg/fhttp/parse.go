@@ -24,6 +24,14 @@ var RequestsPool = sync.Pool{
 	},
 }
 
+var ResponsePool = sync.Pool{
+	New: func() interface{} {
+		r := &Response{}
+		r.Header.DisableNormalizing()
+		return r
+	},
+}
+
 var bytesPool = sync.Pool{
 	New: func() interface{} {
 		return make([]byte, 0xfff)

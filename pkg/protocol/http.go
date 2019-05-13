@@ -16,7 +16,7 @@ import (
 	"github.com/uber/jaeger-client-go"
 
 	"github.com/Lookyan/netramesh/internal/config"
-	nhttp "github.com/Lookyan/netramesh/pkg/http"
+	"github.com/Lookyan/netramesh/pkg/fhttp"
 	"github.com/Lookyan/netramesh/pkg/log"
 )
 
@@ -39,6 +39,8 @@ var queuePool = sync.Pool{
 		return NewQueue()
 	},
 }
+
+var emptyBytes = make([]byte, 0)
 
 // HTTPHandler process HTTP protocol
 type HTTPHandler struct {
@@ -77,16 +79,22 @@ func (h *HTTPHandler) HandleRequest(
 	defer readerPool.Put(bufioHTTPReader)
 	for {
 		tmpWriter.Start()
-		req, err := nhttp.ReadRequest(bufioHTTPReader)
+
+		req := fhttp.RequestsPool.Get().(*fhttp.Request)
+		defer func() {
+			req.Reset()
+			fhttp.RequestsPool.Put(req)
+		}()
+		err := fhttp.ParseRequestHeaders(req, bufioHTTPReader)
 		if err == io.EOF {
 			h.logger.Debug("EOF while parsing request HTTP")
 			return w
 		}
 		if w == nil {
 			// here we can override destination (DNS allowed)
-			if config.GetHTTPConfig().RoutingEnabled {
-				if v := req.Header.Get(config.GetHTTPConfig().RoutingHeaderName); v != "" {
-					addr, err := getRoutingDestination(v, req.Host, originalDst)
+			if config.GetHTTPConfig().RoutingEnabled && req != nil {
+				if v := req.Header.Peek(config.GetHTTPConfig().RoutingHeaderName); string(v) != "" {
+					addr, err := getRoutingDestination(string(v), string(req.Host()), originalDst)
 					if err != nil {
 						log.Warning(err.Error())
 						addrCh <- originalDst
@@ -125,7 +133,7 @@ func (h *HTTPHandler) HandleRequest(
 			return w
 		}
 		// avoid ws connections and other upgrade protos
-		if strings.ToLower(req.Header.Get("Connection")) == "upgrade" {
+		if bytes.Equal(bytes.ToLower(req.Header.Peek("Connection")), []byte("upgrade")) {
 			_, err = io.Copy(w, tmpWriter)
 			if err != nil {
 				h.logger.Warning(err.Error())
@@ -140,22 +148,22 @@ func (h *HTTPHandler) HandleRequest(
 
 		tmpWriter.Stop()
 
-		if req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName) == "" {
+		if bytes.Equal(req.Header.Peek(config.GetHTTPConfig().RequestIdHeaderName), emptyBytes) {
 			req.Header.Set(config.GetHTTPConfig().RequestIdHeaderName, uuid.New().String())
 		}
 
 		if !isInboundConn {
 			// we need to generate context header and propagate it
 			tracingInfoByRequestID, ok := h.tracingContextMapping.Get(
-				req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName),
+				string(req.Header.Peek(config.GetHTTPConfig().RequestIdHeaderName)),
 			)
 			if ok {
 				//h.logger.Debugf("Found request-id matching: %#v", tracingInfoByRequestID)
 				tracingContext := tracingInfoByRequestID.(jaeger.SpanContext)
-				req.Header[jaeger.TraceContextHeaderName] = []string{tracingContext.String()}
+				req.Header.Set(jaeger.TraceContextHeaderName, tracingContext.String())
 				//h.logger.Debugf("Outbound span: %s", tracingContext.String())
 			}
-			if v := req.Header.Get(config.GetHTTPConfig().XSourceHeaderName); v == "" {
+			if v := req.Header.Peek(config.GetHTTPConfig().XSourceHeaderName); bytes.Equal(v, emptyBytes) {
 				req.Header.Set(config.GetHTTPConfig().XSourceHeaderName, config.GetHTTPConfig().XSourceValue)
 			}
 		}
@@ -166,7 +174,15 @@ func (h *HTTPHandler) HandleRequest(
 		bufioWriter := writerPool.Get().(*bufio.Writer)
 		bufioWriter.Reset(w)
 		// write the same request to writer
-		err = req.Write(bufioWriter)
+		_, err = fhttp.WriteRequestHeaders(req, bufioWriter)
+		if err != nil && err != io.ErrUnexpectedEOF {
+			h.logger.Errorf("Error while writing request to w: %s", err.Error())
+		}
+		_, err = fhttp.WriteRequestHeaders(req, bufioWriter)
+		if err != nil && err != io.ErrUnexpectedEOF {
+			h.logger.Errorf("Error while writing request to w: %s", err.Error())
+		}
+		err = fhttp.ParseAndProxyRequestBody(req, bufioHTTPReader, bufioWriter)
 		bufioWriter.Flush()
 		writerPool.Put(bufioWriter)
 		if err != nil && err != io.ErrUnexpectedEOF {
@@ -188,10 +204,13 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 	defer netHTTPRequest.CleanUp()
 	for {
 		tmpWriter.Start()
-		resp, err := nhttp.ReadResponse(bufioHTTPReader, nil)
+		resp := fhttp.ResponsePool.Get().(*fhttp.Response)
+		err := fhttp.ParseResponseHeaders(resp, bufio.NewReader(bufioHTTPReader))
 		if err == io.EOF {
 			h.logger.Debug("EOF while parsing response HTTP")
 			netHTTPRequest.StopRequest()
+			resp.Reset()
+			fhttp.ResponsePool.Put(resp)
 			return
 		}
 		if err != nil {
@@ -206,11 +225,13 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 				h.logger.Warning(err.Error())
 			}
 			netHTTPRequest.StopRequest()
+			resp.Reset()
+			fhttp.ResponsePool.Put(resp)
 			return
 		}
 
 		// avoid ws connections and other upgrade protos
-		if strings.ToLower(resp.Header.Get("Connection")) == "upgrade" {
+		if bytes.Equal(bytes.ToLower(resp.Header.Peek("Connection")), []byte("upgrade")) {
 			_, err = io.Copy(w, tmpWriter)
 			if err != nil {
 				h.logger.Warning(err.Error())
@@ -220,30 +241,38 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 			if err != nil {
 				h.logger.Warning(err.Error())
 			}
+			resp.Reset()
+			fhttp.ResponsePool.Put(resp)
 			return
 		}
 
 		tmpWriter.Stop()
 
 		// if method == HEAD and content-length != 0, it will hang on read with LimitReader, handle this:
-		rq := netHTTPRequest.httpRequests.Peek()
-		if rq != nil && rq.(*nhttp.Request).Method == nhttp.MethodHead {
-			err = resp.Write(w)
-		} else {
-			bufioWriter := writerPool.Get().(*bufio.Writer)
-			bufioWriter.Reset(w)
-			// write the same response to w
-			err = resp.Write(bufioWriter)
-			bufioWriter.Flush()
-			writerPool.Put(bufioWriter)
+		//rq := netHTTPRequest.httpRequests.Peek()
+		//if rq != nil && rq.(*fhttp.Request).Method == fhttp.MethodHead {
+		//	err = resp.Write(w)
+		//} else {
+		bufioWriter := writerPool.Get().(*bufio.Writer)
+		bufioWriter.Reset(w)
+		// write the same response to w
+		_, err = fhttp.WriteResponseHeaders(resp, bufioWriter)
+		if err != nil {
+			h.logger.Errorf("Error while writing response to w: %s", err.Error())
 		}
-
+		err = fhttp.ParseAndProxyResponseBody(resp, bufioHTTPReader, bufioWriter)
 		if err != nil {
 			h.logger.Errorf("Error while writing response to w: %s", err.Error())
 		}
 
+		bufioWriter.Flush()
+		writerPool.Put(bufioWriter)
+		//}
+
 		netHTTPRequest.SetHTTPResponse(resp)
 		netHTTPRequest.StopRequest()
+		resp.Reset()
+		fhttp.ResponsePool.Put(resp)
 	}
 }
 
@@ -273,7 +302,9 @@ func (nr *NetHTTPRequest) StartRequest() {
 	if request == nil {
 		return
 	}
-	httpRequest := request.(*nhttp.Request)
+	httpRequest := request.(*fhttp.Request)
+	var ctx jaeger.SpanContext
+
 	carrier := opentracing.HTTPHeadersCarrier(httpRequest.Header)
 	wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
 
@@ -340,8 +371,8 @@ func (nr *NetHTTPRequest) StopRequest() {
 	request := nr.httpRequests.Pop()
 	response := nr.httpResponses.Pop()
 	if request != nil && response != nil {
-		httpRequest := request.(*nhttp.Request)
-		httpResponse := response.(*nhttp.Response)
+		httpRequest := request.(*fhttp.Request)
+		httpResponse := response.(*fhttp.Response)
 		span := nr.spans.Pop()
 		if span != nil {
 			requestSpan := span.(opentracing.Span)
@@ -351,7 +382,7 @@ func (nr *NetHTTPRequest) StopRequest() {
 	}
 
 	if request != nil && response == nil {
-		httpRequest := request.(*nhttp.Request)
+		httpRequest := request.(*fhttp.Request)
 		span := nr.spans.Pop()
 		if span != nil {
 			requestSpan := span.(opentracing.Span)
@@ -371,8 +402,8 @@ func (nr *NetHTTPRequest) CleanUp() {
 
 func (nr *NetHTTPRequest) fillSpan(
 	span opentracing.Span,
-	req *nhttp.Request,
-	resp *nhttp.Response) {
+	req *fhttp.Request,
+	resp *fhttp.Response) {
 	if nr.isInbound {
 		span.SetTag("span.kind", "server")
 	} else {
@@ -400,11 +431,11 @@ func (nr *NetHTTPRequest) fillSpan(
 	}
 }
 
-func (nr *NetHTTPRequest) SetHTTPRequest(r *nhttp.Request) {
+func (nr *NetHTTPRequest) SetHTTPRequest(r *fhttp.Request) {
 	nr.httpRequests.Push(r)
 }
 
-func (nr *NetHTTPRequest) SetHTTPResponse(r *nhttp.Response) {
+func (nr *NetHTTPRequest) SetHTTPResponse(r *fhttp.Response) {
 	nr.httpResponses.Push(r)
 }
 
