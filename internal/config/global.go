@@ -17,8 +17,8 @@ const (
 )
 
 type NetraConfig struct {
-	Port                          int
-	PprofPort                     int
+	Port                          uint16
+	PprofPort                     uint16
 	PrometheusPort                uint16
 	ServiceName                   string
 	TracingContextExpiration      time.Duration
@@ -108,18 +108,18 @@ func GlobalConfigFromENV(logger *log.Logger) error {
 		}
 	}
 	if v := os.Getenv(envNetraPort); v != "" {
-		p, err := strconv.Atoi(v)
+		p, err := strconv.ParseUint(v, 10, 16)
 		if err != nil {
 			return err
 		}
-		netraConfig.Port = p
+		netraConfig.Port = uint16(p)
 	}
 	if v := os.Getenv(envNetraPprofPort); v != "" {
-		p, err := strconv.Atoi(v)
+		p, err := strconv.ParseUint(v, 10, 16)
 		if err != nil {
 			return err
 		}
-		netraConfig.PprofPort = p
+		netraConfig.PprofPort = uint16(p)
 	}
 	if v := os.Getenv(envNetraPrometheusPort); v != "" {
 		p, err := strconv.ParseUint(v, 10, 16)
@@ -145,8 +145,8 @@ func GlobalConfigFromENV(logger *log.Logger) error {
 	if v := os.Getenv(envNetraHTTPPorts); v != "" {
 		ports := strings.Split(v, ",")
 		for _, port := range ports {
-			// check whether port is int
-			_, err := strconv.Atoi(port)
+			// check whether port is valid
+			_, err := strconv.ParseUint(port, 10, 16)
 			if err != nil {
 				return err
 			}
