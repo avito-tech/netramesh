@@ -503,3 +503,8 @@ func getRoutingDestination(routingValue string, host string, originalDst string)
 	}
 	return originalDst, nil
 }
+
+func ExtractTracingFromHeader(req *fhttp.Request) jaeger.SpanContext {
+	var span jaeger.SpanContext
+	req.Header.Peek("")
+}
