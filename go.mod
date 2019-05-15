@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
+	github.com/go-test/deep v1.0.1
 	github.com/google/uuid v1.1.0
 	github.com/opentracing/opentracing-go v1.0.2
 	github.com/patrickmn/go-cache v2.1.0+incompatible

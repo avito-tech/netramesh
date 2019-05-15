@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sync/atomic"
 	"time"
 )
 
@@ -24,6 +23,7 @@ type ResponseHeader struct {
 	noHTTP11           bool
 	connectionClose    bool
 
+	firstLine          []byte
 	statusCode         int
 	contentLength      int
 	contentLengthBytes []byte
@@ -60,6 +60,7 @@ type RequestHeader struct {
 	contentLength      int
 	contentLengthBytes []byte
 
+	firstLine   []byte
 	method      []byte
 	requestURI  []byte
 	host        []byte
@@ -634,6 +635,7 @@ func (h *ResponseHeader) resetSkipNormalize() {
 
 	h.contentType = h.contentType[:0]
 	h.server = h.server[:0]
+	h.firstLine = h.firstLine[:0]
 
 	h.h = h.h[:0]
 	h.cookies = h.cookies[:0]
@@ -658,6 +660,7 @@ func (h *RequestHeader) resetSkipNormalize() {
 	h.host = h.host[:0]
 	h.contentType = h.contentType[:0]
 	h.userAgent = h.userAgent[:0]
+	h.firstLine = h.firstLine[:0]
 
 	h.h = h.h[:0]
 	h.cookies = h.cookies[:0]
@@ -682,6 +685,7 @@ func (h *ResponseHeader) CopyTo(dst *ResponseHeader) {
 	dst.server = append(dst.server[:0], h.server...)
 	dst.h = copyArgs(dst.h, h.h)
 	dst.cookies = copyArgs(dst.cookies, h.cookies)
+	dst.firstLine = append(dst.firstLine[:0], h.firstLine...)
 }
 
 // CopyTo copies all the headers to dst.
@@ -700,6 +704,7 @@ func (h *RequestHeader) CopyTo(dst *RequestHeader) {
 	dst.host = append(dst.host[:0], h.host...)
 	dst.contentType = append(dst.contentType[:0], h.contentType...)
 	dst.userAgent = append(dst.userAgent[:0], h.userAgent...)
+	dst.firstLine = append(dst.firstLine[:0], h.firstLine...)
 	dst.h = copyArgs(dst.h, h.h)
 	dst.cookies = copyArgs(dst.cookies, h.cookies)
 	dst.cookiesCollected = h.cookiesCollected
@@ -944,8 +949,6 @@ func (h *ResponseHeader) SetCanonical(key, value []byte) {
 		}
 	case "Transfer-Encoding":
 		// Transfer-Encoding is managed automatically.
-	case "Date":
-		// Date is managed automatically.
 	default:
 		h.h = setArgBytes(h.h, key, value)
 	}
@@ -1377,22 +1380,22 @@ func isOnlyCRLF(b []byte) bool {
 	return true
 }
 
-func init() {
-	refreshServerDate()
-	go func() {
-		for {
-			time.Sleep(time.Second)
-			refreshServerDate()
-		}
-	}()
-}
+//func init() {
+//	refreshServerDate()
+//	go func() {
+//		for {
+//			time.Sleep(time.Second)
+//			refreshServerDate()
+//		}
+//	}()
+//}
 
-var serverDate atomic.Value
-
-func refreshServerDate() {
-	b := AppendHTTPDate(nil, time.Now())
-	serverDate.Store(b)
-}
+//var serverDate atomic.Value
+//
+//func refreshServerDate() {
+//	b := AppendHTTPDate(nil, time.Now())
+//	serverDate.Store(b)
+//}
 
 // Write writes response header to w.
 func (h *ResponseHeader) Write(w *bufio.Writer) error {
@@ -1424,23 +1427,20 @@ func (h *ResponseHeader) String() string {
 // AppendBytes appends response header representation to dst and returns
 // the extended dst.
 func (h *ResponseHeader) AppendBytes(dst []byte) []byte {
-	statusCode := h.StatusCode()
-	if statusCode < 0 {
-		statusCode = StatusOK
-	}
-	dst = append(dst, statusLine(statusCode)...)
+	dst = append(dst, h.firstLine...)
+	dst = append(dst, strCRLF...)
 
 	server := h.Server()
-	if len(server) == 0 {
-		server = defaultServerName
+	if len(server) != 0 {
+		dst = appendHeaderLine(dst, strServer, server)
 	}
-	dst = appendHeaderLine(dst, strServer, server)
-	dst = appendHeaderLine(dst, strDate, serverDate.Load().([]byte))
+
+	//dst = appendHeaderLine(dst, strDate, serverDate.Load().([]byte))
 
 	// Append Content-Type only for non-zero responses
-	// or if it is explicitly set.
+	// or if it is explicitly set. (FIXED to non-fasthttp behavior)
 	// See https://github.com/valyala/fasthttp/issues/28 .
-	if h.ContentLength() != 0 || len(h.contentType) > 0 {
+	if len(h.contentType) > 0 {
 		dst = appendHeaderLine(dst, strContentType, h.ContentType())
 	}
 
@@ -1450,9 +1450,7 @@ func (h *ResponseHeader) AppendBytes(dst []byte) []byte {
 
 	for i, n := 0, len(h.h); i < n; i++ {
 		kv := &h.h[i]
-		if !bytes.Equal(kv.key, strDate) {
-			dst = appendHeaderLine(dst, kv.key, kv.value)
-		}
+		dst = appendHeaderLine(dst, kv.key, kv.value)
 	}
 
 	n := len(h.cookies)
@@ -1501,11 +1499,7 @@ func (h *RequestHeader) String() string {
 // the extended dst.
 func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 	// there is no need in h.parseRawHeaders() here - raw headers are specially handled below.
-	dst = append(dst, h.Method()...)
-	dst = append(dst, ' ')
-	dst = append(dst, h.RequestURI()...)
-	dst = append(dst, ' ')
-	dst = append(dst, strHTTP11...)
+	dst = append(dst, h.firstLine...)
 	dst = append(dst, strCRLF...)
 
 	if !h.rawHeadersParsed && len(h.rawHeaders) > 0 {
@@ -1513,10 +1507,9 @@ func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 	}
 
 	userAgent := h.UserAgent()
-	if len(userAgent) == 0 {
-		userAgent = defaultUserAgent
+	if len(userAgent) > 0 {
+		dst = appendHeaderLine(dst, strUserAgent, userAgent)
 	}
-	dst = appendHeaderLine(dst, strUserAgent, userAgent)
 
 	host := h.Host()
 	if len(host) > 0 {
@@ -1615,6 +1608,7 @@ func (h *ResponseHeader) parseFirstLine(buf []byte) (int, error) {
 			return 0, err
 		}
 	}
+	h.firstLine = append(h.firstLine[:0], b...)
 
 	// parse protocol
 	n := bytes.IndexByte(b, ' ')
@@ -1645,6 +1639,7 @@ func (h *RequestHeader) parseFirstLine(buf []byte) (int, error) {
 			return 0, err
 		}
 	}
+	h.firstLine = append(h.firstLine[:0], b...)
 
 	// parse method
 	n := bytes.IndexByte(b, ' ')

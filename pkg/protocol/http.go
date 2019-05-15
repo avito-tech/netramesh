@@ -6,6 +6,7 @@ import (
 	"container/list"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"strings"
 	"sync"
@@ -178,11 +179,11 @@ func (h *HTTPHandler) HandleRequest(
 		if err != nil && err != io.ErrUnexpectedEOF {
 			h.logger.Errorf("Error while writing request to w: %s", err.Error())
 		}
-		_, err = fhttp.WriteRequestHeaders(req, bufioWriter)
+
+		err = fhttp.ParseAndProxyRequestBody(req, bufioHTTPReader, bufioWriter)
 		if err != nil && err != io.ErrUnexpectedEOF {
 			h.logger.Errorf("Error while writing request to w: %s", err.Error())
 		}
-		err = fhttp.ParseAndProxyRequestBody(req, bufioHTTPReader, bufioWriter)
 		bufioWriter.Flush()
 		writerPool.Put(bufioWriter)
 		if err != nil && err != io.ErrUnexpectedEOF {
@@ -205,6 +206,8 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 	for {
 		tmpWriter.Start()
 		resp := fhttp.ResponsePool.Get().(*fhttp.Response)
+		q, _ := ioutil.ReadAll(bufioHTTPReader)
+		fmt.Println(string(q))
 		err := fhttp.ParseResponseHeaders(resp, bufio.NewReader(bufioHTTPReader))
 		if err == io.EOF {
 			h.logger.Debug("EOF while parsing response HTTP")
@@ -298,73 +301,73 @@ func NewNetHTTPRequest(logger *log.Logger, isInbound bool, tracingContextMapping
 }
 
 func (nr *NetHTTPRequest) StartRequest() {
-	request := nr.httpRequests.Peek()
-	if request == nil {
-		return
-	}
-	httpRequest := request.(*fhttp.Request)
-	var ctx jaeger.SpanContext
-
-	carrier := opentracing.HTTPHeadersCarrier(httpRequest.Header)
-	wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
-
-	operation := httpRequest.URL.Path
-	if !nr.isInbound {
-		operation = httpRequest.Host + httpRequest.URL.Path
-	}
-	httpConfig := config.GetHTTPConfig()
-	var span opentracing.Span
-	if err != nil {
-		nr.logger.Infof("Carrier extract error: %s", err.Error())
-		span = opentracing.StartSpan(
-			operation,
-		)
-
-		if nr.isInbound {
-			context := span.Context().(jaeger.SpanContext)
-			nr.tracingContextMapping.SetDefault(
-				httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
-				context,
-			)
-
-			if len(httpConfig.HeadersMap) > 0 {
-				// prefer httpConfig iteration, headers are already parsed into a map
-				for headerName, tagName := range httpConfig.HeadersMap {
-					if val := httpRequest.Header.Get(headerName); val != "" {
-						span.SetTag(tagName, val)
-					}
-				}
-			}
-			if len(httpConfig.CookiesMap) > 0 {
-				// prefer cookies list iteration (there is no pre-parsed cookies list)
-				for _, cookie := range httpRequest.Cookies() {
-					if tagName, ok := httpConfig.CookiesMap[cookie.Name]; ok {
-						span.SetTag(tagName, cookie.Value)
-					}
-				}
-			}
-		} else {
-			span.Tracer().Inject(
-				span.Context(),
-				opentracing.HTTPHeaders,
-				opentracing.HTTPHeadersCarrier(httpRequest.Header),
-			)
-		}
-	} else {
-		if nr.isInbound {
-			context := wireContext.(jaeger.SpanContext)
-			nr.tracingContextMapping.SetDefault(
-				httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
-				context,
-			)
-		}
-		span = opentracing.StartSpan(
-			operation,
-			opentracing.ChildOf(wireContext),
-		)
-	}
-
-	nr.spans.Push(span)
+	//request := nr.httpRequests.Peek()
+	//if request == nil {
+	//	return
+	//}
+	//httpRequest := request.(*fhttp.Request)
+	//var ctx jaeger.SpanContext
+	//
+	//carrier := opentracing.HTTPHeadersCarrier(httpRequest.Header)
+	//wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
+	//
+	//operation := httpRequest.URL.Path
+	//if !nr.isInbound {
+	//	operation = httpRequest.Host + httpRequest.URL.Path
+	//}
+	//httpConfig := config.GetHTTPConfig()
+	//var span opentracing.Span
+	//if err != nil {
+	//	nr.logger.Infof("Carrier extract error: %s", err.Error())
+	//	span = opentracing.StartSpan(
+	//		operation,
+	//	)
+	//
+	//	if nr.isInbound {
+	//		context := span.Context().(jaeger.SpanContext)
+	//		nr.tracingContextMapping.SetDefault(
+	//			httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
+	//			context,
+	//		)
+	//
+	//		if len(httpConfig.HeadersMap) > 0 {
+	//			// prefer httpConfig iteration, headers are already parsed into a map
+	//			for headerName, tagName := range httpConfig.HeadersMap {
+	//				if val := httpRequest.Header.Get(headerName); val != "" {
+	//					span.SetTag(tagName, val)
+	//				}
+	//			}
+	//		}
+	//		if len(httpConfig.CookiesMap) > 0 {
+	//			// prefer cookies list iteration (there is no pre-parsed cookies list)
+	//			for _, cookie := range httpRequest.Cookies() {
+	//				if tagName, ok := httpConfig.CookiesMap[cookie.Name]; ok {
+	//					span.SetTag(tagName, cookie.Value)
+	//				}
+	//			}
+	//		}
+	//	} else {
+	//		span.Tracer().Inject(
+	//			span.Context(),
+	//			opentracing.HTTPHeaders,
+	//			opentracing.HTTPHeadersCarrier(httpRequest.Header),
+	//		)
+	//	}
+	//} else {
+	//	if nr.isInbound {
+	//		context := wireContext.(jaeger.SpanContext)
+	//		nr.tracingContextMapping.SetDefault(
+	//			httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
+	//			context,
+	//		)
+	//	}
+	//	span = opentracing.StartSpan(
+	//		operation,
+	//		opentracing.ChildOf(wireContext),
+	//	)
+	//}
+	//
+	//nr.spans.Push(span)
 }
 
 func (nr *NetHTTPRequest) StopRequest() {
@@ -404,31 +407,31 @@ func (nr *NetHTTPRequest) fillSpan(
 	span opentracing.Span,
 	req *fhttp.Request,
 	resp *fhttp.Response) {
-	if nr.isInbound {
-		span.SetTag("span.kind", "server")
-	} else {
-		span.SetTag("span.kind", "client")
-	}
-	span.SetTag("remote_addr", nr.remoteAddr)
-	if req != nil {
-		span.SetTag("http.host", req.Host)
-		span.SetTag("http.path", req.URL.String())
-		span.SetTag("http.request_size", req.ContentLength)
-		span.SetTag("http.method", req.Method)
-		if userAgent := req.Header.Get("User-Agent"); userAgent != "" {
-			span.SetTag("http.user_agent", userAgent)
-		}
-		if requestID := req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName); requestID != "" {
-			span.SetTag("http.request_id", requestID)
-		}
-	}
-	if resp != nil {
-		span.SetTag("http.response_size", resp.ContentLength)
-		span.SetTag("http.status_code", resp.StatusCode)
-		if resp.StatusCode >= 500 {
-			span.SetTag("error", "true")
-		}
-	}
+	//if nr.isInbound {
+	//	span.SetTag("span.kind", "server")
+	//} else {
+	//	span.SetTag("span.kind", "client")
+	//}
+	//span.SetTag("remote_addr", nr.remoteAddr)
+	//if req != nil {
+	//	span.SetTag("http.host", req.Host)
+	//	span.SetTag("http.path", req.URL.String())
+	//	span.SetTag("http.request_size", req.ContentLength)
+	//	span.SetTag("http.method", req.Method)
+	//	if userAgent := req.Header.Get("User-Agent"); userAgent != "" {
+	//		span.SetTag("http.user_agent", userAgent)
+	//	}
+	//	if requestID := req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName); requestID != "" {
+	//		span.SetTag("http.request_id", requestID)
+	//	}
+	//}
+	//if resp != nil {
+	//	span.SetTag("http.response_size", resp.ContentLength)
+	//	span.SetTag("http.status_code", resp.StatusCode)
+	//	if resp.StatusCode >= 500 {
+	//		span.SetTag("error", "true")
+	//	}
+	//}
 }
 
 func (nr *NetHTTPRequest) SetHTTPRequest(r *fhttp.Request) {
@@ -504,7 +507,7 @@ func getRoutingDestination(routingValue string, host string, originalDst string)
 	return originalDst, nil
 }
 
-func ExtractTracingFromHeader(req *fhttp.Request) jaeger.SpanContext {
-	var span jaeger.SpanContext
-	req.Header.Peek("")
-}
+//func ExtractTracingFromHeader(req *fhttp.Request) jaeger.SpanContext {
+//	var span jaeger.SpanContext
+//	req.Header.Peek("")
+//}
