@@ -6,7 +6,6 @@ import (
 	"container/list"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"strings"
 	"sync"
@@ -82,13 +81,10 @@ func (h *HTTPHandler) HandleRequest(
 		tmpWriter.Start()
 
 		req := fhttp.RequestsPool.Get().(*fhttp.Request)
-		defer func() {
-			req.Reset()
-			fhttp.RequestsPool.Put(req)
-		}()
 		err := fhttp.ParseRequestHeaders(req, bufioHTTPReader)
 		if err == io.EOF {
 			h.logger.Debug("EOF while parsing request HTTP")
+			fhttp.RequestsPool.Put(req)
 			return w
 		}
 		if w == nil {
@@ -111,6 +107,7 @@ func (h *HTTPHandler) HandleRequest(
 
 			w = <-connCh
 			if w == nil {
+				fhttp.RequestsPool.Put(req)
 				return w
 			}
 
@@ -131,10 +128,11 @@ func (h *HTTPHandler) HandleRequest(
 			if err != nil {
 				h.logger.Warning(err.Error())
 			}
+			fhttp.RequestsPool.Put(req)
 			return w
 		}
 		// avoid ws connections and other upgrade protos
-		if bytes.Equal(bytes.ToLower(req.Header.Peek("Connection")), []byte("upgrade")) {
+		if req.Header.ConnectionUpgrade() {
 			_, err = io.Copy(w, tmpWriter)
 			if err != nil {
 				h.logger.Warning(err.Error())
@@ -144,6 +142,7 @@ func (h *HTTPHandler) HandleRequest(
 			if err != nil {
 				h.logger.Warning(err.Error())
 			}
+			fhttp.RequestsPool.Put(req)
 			return w
 		}
 
@@ -177,18 +176,24 @@ func (h *HTTPHandler) HandleRequest(
 		// write the same request to writer
 		_, err = fhttp.WriteRequestHeaders(req, bufioWriter)
 		if err != nil && err != io.ErrUnexpectedEOF {
-			h.logger.Errorf("Error while writing request to w: %s", err.Error())
+			h.logger.Errorf("Error while writing request headers to w: %s", err.Error())
+			fhttp.RequestsPool.Put(req)
+			return w
 		}
 
 		err = fhttp.ParseAndProxyRequestBody(req, bufioHTTPReader, bufioWriter)
 		if err != nil && err != io.ErrUnexpectedEOF {
 			h.logger.Errorf("Error while writing request to w: %s", err.Error())
+			fhttp.RequestsPool.Put(req)
+			return w
 		}
 		bufioWriter.Flush()
 		writerPool.Put(bufioWriter)
 		if err != nil && err != io.ErrUnexpectedEOF {
 			h.logger.Errorf("Error while writing request to w: %s", err.Error())
 		}
+
+		fhttp.RequestsPool.Put(req)
 	}
 
 	return w
@@ -206,9 +211,7 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 	for {
 		tmpWriter.Start()
 		resp := fhttp.ResponsePool.Get().(*fhttp.Response)
-		q, _ := ioutil.ReadAll(bufioHTTPReader)
-		fmt.Println(string(q))
-		err := fhttp.ParseResponseHeaders(resp, bufio.NewReader(bufioHTTPReader))
+		err := fhttp.ParseResponseHeaders(resp, bufioHTTPReader)
 		if err == io.EOF {
 			h.logger.Debug("EOF while parsing response HTTP")
 			netHTTPRequest.StopRequest()
@@ -234,7 +237,7 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 		}
 
 		// avoid ws connections and other upgrade protos
-		if bytes.Equal(bytes.ToLower(resp.Header.Peek("Connection")), []byte("upgrade")) {
+		if resp.Header.ConnectionUpgrade() {
 			_, err = io.Copy(w, tmpWriter)
 			if err != nil {
 				h.logger.Warning(err.Error())
@@ -261,11 +264,16 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 		// write the same response to w
 		_, err = fhttp.WriteResponseHeaders(resp, bufioWriter)
 		if err != nil {
-			h.logger.Errorf("Error while writing response to w: %s", err.Error())
+			h.logger.Errorf("Error while writing response headers to w: %s", err.Error())
+			fhttp.ResponsePool.Put(resp)
+			return
 		}
+		bufioWriter.Flush()
 		err = fhttp.ParseAndProxyResponseBody(resp, bufioHTTPReader, bufioWriter)
 		if err != nil {
 			h.logger.Errorf("Error while writing response to w: %s", err.Error())
+			fhttp.ResponsePool.Put(resp)
+			return
 		}
 
 		bufioWriter.Flush()
@@ -274,7 +282,7 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 
 		netHTTPRequest.SetHTTPResponse(resp)
 		netHTTPRequest.StopRequest()
-		resp.Reset()
+		//resp.Reset()
 		fhttp.ResponsePool.Put(resp)
 	}
 }
@@ -301,73 +309,71 @@ func NewNetHTTPRequest(logger *log.Logger, isInbound bool, tracingContextMapping
 }
 
 func (nr *NetHTTPRequest) StartRequest() {
-	//request := nr.httpRequests.Peek()
-	//if request == nil {
-	//	return
-	//}
-	//httpRequest := request.(*fhttp.Request)
-	//var ctx jaeger.SpanContext
-	//
-	//carrier := opentracing.HTTPHeadersCarrier(httpRequest.Header)
-	//wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
-	//
-	//operation := httpRequest.URL.Path
-	//if !nr.isInbound {
-	//	operation = httpRequest.Host + httpRequest.URL.Path
-	//}
-	//httpConfig := config.GetHTTPConfig()
-	//var span opentracing.Span
-	//if err != nil {
-	//	nr.logger.Infof("Carrier extract error: %s", err.Error())
-	//	span = opentracing.StartSpan(
-	//		operation,
-	//	)
-	//
-	//	if nr.isInbound {
-	//		context := span.Context().(jaeger.SpanContext)
-	//		nr.tracingContextMapping.SetDefault(
-	//			httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
-	//			context,
-	//		)
-	//
-	//		if len(httpConfig.HeadersMap) > 0 {
-	//			// prefer httpConfig iteration, headers are already parsed into a map
-	//			for headerName, tagName := range httpConfig.HeadersMap {
-	//				if val := httpRequest.Header.Get(headerName); val != "" {
-	//					span.SetTag(tagName, val)
-	//				}
-	//			}
-	//		}
-	//		if len(httpConfig.CookiesMap) > 0 {
-	//			// prefer cookies list iteration (there is no pre-parsed cookies list)
-	//			for _, cookie := range httpRequest.Cookies() {
-	//				if tagName, ok := httpConfig.CookiesMap[cookie.Name]; ok {
-	//					span.SetTag(tagName, cookie.Value)
-	//				}
-	//			}
-	//		}
-	//	} else {
-	//		span.Tracer().Inject(
-	//			span.Context(),
-	//			opentracing.HTTPHeaders,
-	//			opentracing.HTTPHeadersCarrier(httpRequest.Header),
-	//		)
-	//	}
-	//} else {
-	//	if nr.isInbound {
-	//		context := wireContext.(jaeger.SpanContext)
-	//		nr.tracingContextMapping.SetDefault(
-	//			httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
-	//			context,
-	//		)
-	//	}
-	//	span = opentracing.StartSpan(
-	//		operation,
-	//		opentracing.ChildOf(wireContext),
-	//	)
-	//}
-	//
-	//nr.spans.Push(span)
+	request := nr.httpRequests.Peek()
+	if request == nil {
+		return
+	}
+	httpRequest := request.(*fhttp.Request)
+
+	wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
+
+	operation := httpRequest.URI().Path()
+	if !nr.isInbound {
+		operation = httpRequest.Header.Host() + httpRequest.URI().Path()
+	}
+	httpConfig := config.GetHTTPConfig()
+	var span opentracing.Span
+	if err != nil {
+		nr.logger.Infof("Carrier extract error: %s", err.Error())
+		span = opentracing.StartSpan(
+			operation,
+		)
+
+		if nr.isInbound {
+			context := span.Context().(jaeger.SpanContext)
+			nr.tracingContextMapping.SetDefault(
+				httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
+				context,
+			)
+
+			if len(httpConfig.HeadersMap) > 0 {
+				// prefer httpConfig iteration, headers are already parsed into a map
+				for headerName, tagName := range httpConfig.HeadersMap {
+					if val := httpRequest.Header.Get(headerName); val != "" {
+						span.SetTag(tagName, val)
+					}
+				}
+			}
+			if len(httpConfig.CookiesMap) > 0 {
+				// prefer cookies list iteration (there is no pre-parsed cookies list)
+				for _, cookie := range httpRequest.Cookies() {
+					if tagName, ok := httpConfig.CookiesMap[cookie.Name]; ok {
+						span.SetTag(tagName, cookie.Value)
+					}
+				}
+			}
+		} else {
+			span.Tracer().Inject(
+				span.Context(),
+				opentracing.HTTPHeaders,
+				httpRequest.Header,
+			)
+		}
+	} else {
+		if nr.isInbound {
+			context := wireContext.(jaeger.SpanContext)
+			nr.tracingContextMapping.SetDefault(
+				httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
+				context,
+			)
+		}
+		span = opentracing.StartSpan(
+			operation,
+			opentracing.ChildOf(wireContext),
+		)
+	}
+
+	nr.spans.Push(span)
 }
 
 func (nr *NetHTTPRequest) StopRequest() {
@@ -507,7 +513,20 @@ func getRoutingDestination(routingValue string, host string, originalDst string)
 	return originalDst, nil
 }
 
-//func ExtractTracingFromHeader(req *fhttp.Request) jaeger.SpanContext {
-//	var span jaeger.SpanContext
-//	req.Header.Peek("")
-//}
+func ExtractTracingFromHeader(req *fhttp.Request) (*jaeger.SpanContext, error) {
+	TraceContextHeaderName := ""
+	JaegerDebugHeader := ""
+
+	var ctx jaeger.SpanContext
+	if v := req.Header.Peek(TraceContextHeaderName); !bytes.Equal(v, emptyBytes) {
+		ctx, err := jaeger.ContextFromString(string(v))
+		if err != nil {
+			return ctx, nil
+		}
+	}
+	if v := req.Header.Peek(JaegerDebugHeader); !bytes.Equal(v, emptyBytes) {
+		ctx.IsDebug()
+	}
+
+	return ctx, nil
+}

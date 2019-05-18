@@ -40,11 +40,7 @@ var bytesPool = sync.Pool{
 
 // ParseRequest parses requests from r (reset req for keep-alive support)
 func ParseRequestHeaders(req *Request, r *bufio.Reader) error {
-	err := req.Header.Read(r)
-	if err != nil {
-		return fmt.Errorf("error while parsing headers: %s", err.Error())
-	}
-	return nil
+	return req.Header.Read(r)
 }
 
 // WriteRequestHeaders writes headers to w
@@ -62,11 +58,7 @@ func ParseAndProxyRequestBody(req *Request, r *bufio.Reader, w io.Writer) error 
 
 // ParseResponseHeaders parses response from r
 func ParseResponseHeaders(resp *Response, r *bufio.Reader) error {
-	err := resp.Header.Read(r)
-	if err != nil {
-		return fmt.Errorf("error while parsing headers: %s", err.Error())
-	}
-	return nil
+	return resp.Header.Read(r)
 }
 
 // ParseAndProxyResponseBody parses and proxies response body
@@ -95,7 +87,7 @@ func readBody(r *bufio.Reader, w io.Writer, contentLength int, dst []byte) error
 }
 
 func readBodyIdentity(r *bufio.Reader, w io.Writer, dst []byte) error {
-	dst = dst[:0]
+	dst = dst[:cap(dst)]
 	_, err := io.CopyBuffer(w, r, dst)
 	return err
 }

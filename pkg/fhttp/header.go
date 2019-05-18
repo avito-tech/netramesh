@@ -91,6 +91,13 @@ func (h *ResponseHeader) SetContentRange(startPos, endPos, contentLength int) {
 	h.SetCanonical(strContentRange, h.bufKV.value)
 }
 
+// ForeachKey allows to traverse through all request headers
+func (h *RequestHeader) ForeachKey(handler func(key, val string) error) error {
+	h.VisitAll(func(key, value []byte) {
+		handler(string(key), string(value))
+	})
+}
+
 // SetByteRange sets 'Range: bytes=startPos-endPos' header.
 //
 //     * If startPos is negative, then 'bytes=-startPos' value is set.
@@ -1335,6 +1342,7 @@ func (h *RequestHeader) tryRead(r *bufio.Reader, n int) error {
 	if len(b) == 0 {
 		// treat all errors on the first byte read as EOF
 		if n == 1 || err == io.EOF {
+			fmt.Println("THIS ERRor")
 			return io.EOF
 		}
 
@@ -1767,7 +1775,6 @@ func (h *ResponseHeader) parseHeaders(buf []byte) (int, error) {
 		}
 	}
 	if s.err != nil {
-		h.connectionClose = true
 		return 0, s.err
 	}
 
@@ -1776,7 +1783,6 @@ func (h *ResponseHeader) parseHeaders(buf []byte) (int, error) {
 	}
 	if h.contentLength == -2 && !h.ConnectionUpgrade() && !h.mustSkipContentLength() {
 		h.h = setArgBytes(h.h, strTransferEncoding, strIdentity)
-		h.connectionClose = true
 	}
 	if h.noHTTP11 && !h.connectionClose {
 		// close connection for non-http/1.1 response unless 'Connection: keep-alive' is set.
