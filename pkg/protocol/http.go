@@ -315,42 +315,42 @@ func (nr *NetHTTPRequest) StartRequest() {
 	}
 	httpRequest := request.(*fhttp.Request)
 
-	wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
+	wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, httpRequest.Header)
 
 	operation := httpRequest.URI().Path()
 	if !nr.isInbound {
-		operation = httpRequest.Header.Host() + httpRequest.URI().Path()
+		operation = append(httpRequest.Header.Host(), httpRequest.URI().Path()...)
 	}
 	httpConfig := config.GetHTTPConfig()
 	var span opentracing.Span
 	if err != nil {
 		nr.logger.Infof("Carrier extract error: %s", err.Error())
 		span = opentracing.StartSpan(
-			operation,
+			string(operation),
 		)
 
 		if nr.isInbound {
 			context := span.Context().(jaeger.SpanContext)
 			nr.tracingContextMapping.SetDefault(
-				httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
+				string(httpRequest.Header.Peek(httpConfig.RequestIdHeaderName)),
 				context,
 			)
 
 			if len(httpConfig.HeadersMap) > 0 {
 				// prefer httpConfig iteration, headers are already parsed into a map
 				for headerName, tagName := range httpConfig.HeadersMap {
-					if val := httpRequest.Header.Get(headerName); val != "" {
-						span.SetTag(tagName, val)
+					if val := httpRequest.Header.Peek(headerName); !bytes.Equal(val, emptyBytes) {
+						span.SetTag(tagName, string(val))
 					}
 				}
 			}
 			if len(httpConfig.CookiesMap) > 0 {
 				// prefer cookies list iteration (there is no pre-parsed cookies list)
-				for _, cookie := range httpRequest.Cookies() {
-					if tagName, ok := httpConfig.CookiesMap[cookie.Name]; ok {
-						span.SetTag(tagName, cookie.Value)
+				httpRequest.Header.VisitAllCookie(func(key, value []byte) {
+					if tagName, ok := httpConfig.CookiesMap[string(key)]; ok {
+						span.SetTag(tagName, string(value))
 					}
-				}
+				})
 			}
 		} else {
 			span.Tracer().Inject(
@@ -363,12 +363,12 @@ func (nr *NetHTTPRequest) StartRequest() {
 		if nr.isInbound {
 			context := wireContext.(jaeger.SpanContext)
 			nr.tracingContextMapping.SetDefault(
-				httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
+				string(httpRequest.Header.Peek(httpConfig.RequestIdHeaderName)),
 				context,
 			)
 		}
 		span = opentracing.StartSpan(
-			operation,
+			string(operation),
 			opentracing.ChildOf(wireContext),
 		)
 	}
@@ -413,31 +413,31 @@ func (nr *NetHTTPRequest) fillSpan(
 	span opentracing.Span,
 	req *fhttp.Request,
 	resp *fhttp.Response) {
-	//if nr.isInbound {
-	//	span.SetTag("span.kind", "server")
-	//} else {
-	//	span.SetTag("span.kind", "client")
-	//}
-	//span.SetTag("remote_addr", nr.remoteAddr)
-	//if req != nil {
-	//	span.SetTag("http.host", req.Host)
-	//	span.SetTag("http.path", req.URL.String())
-	//	span.SetTag("http.request_size", req.ContentLength)
-	//	span.SetTag("http.method", req.Method)
-	//	if userAgent := req.Header.Get("User-Agent"); userAgent != "" {
-	//		span.SetTag("http.user_agent", userAgent)
-	//	}
-	//	if requestID := req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName); requestID != "" {
-	//		span.SetTag("http.request_id", requestID)
-	//	}
-	//}
-	//if resp != nil {
-	//	span.SetTag("http.response_size", resp.ContentLength)
-	//	span.SetTag("http.status_code", resp.StatusCode)
-	//	if resp.StatusCode >= 500 {
-	//		span.SetTag("error", "true")
-	//	}
-	//}
+	if nr.isInbound {
+		span.SetTag("span.kind", "server")
+	} else {
+		span.SetTag("span.kind", "client")
+	}
+	span.SetTag("remote_addr", nr.remoteAddr)
+	if req != nil {
+		span.SetTag("http.host", string(req.Host()))
+		span.SetTag("http.path", string(req.URI().Path()))
+		span.SetTag("http.request_size", req.Header.ContentLength())
+		span.SetTag("http.method", string(req.Header.Method()))
+		if userAgent := req.Header.UserAgent(); !bytes.Equal(userAgent, emptyBytes) {
+			span.SetTag("http.user_agent", string(userAgent))
+		}
+		if requestID := req.Header.Peek(config.GetHTTPConfig().RequestIdHeaderName); !bytes.Equal(requestID, emptyBytes) {
+			span.SetTag("http.request_id", string(requestID))
+		}
+	}
+	if resp != nil {
+		span.SetTag("http.response_size", resp.Header.ContentLength())
+		span.SetTag("http.status_code", resp.StatusCode())
+		if resp.StatusCode() >= 500 {
+			span.SetTag("error", "true")
+		}
+	}
 }
 
 func (nr *NetHTTPRequest) SetHTTPRequest(r *fhttp.Request) {
@@ -511,22 +511,4 @@ func getRoutingDestination(routingValue string, host string, originalDst string)
 		}
 	}
 	return originalDst, nil
-}
-
-func ExtractTracingFromHeader(req *fhttp.Request) (*jaeger.SpanContext, error) {
-	TraceContextHeaderName := ""
-	JaegerDebugHeader := ""
-
-	var ctx jaeger.SpanContext
-	if v := req.Header.Peek(TraceContextHeaderName); !bytes.Equal(v, emptyBytes) {
-		ctx, err := jaeger.ContextFromString(string(v))
-		if err != nil {
-			return ctx, nil
-		}
-	}
-	if v := req.Header.Peek(JaegerDebugHeader); !bytes.Equal(v, emptyBytes) {
-		ctx.IsDebug()
-	}
-
-	return ctx, nil
 }

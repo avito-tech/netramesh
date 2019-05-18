@@ -1,7 +1,5 @@
 # github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
 github.com/beorn7/perks/quantile
-# github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd
-github.com/codahale/hdrhistogram
 # github.com/go-test/deep v1.0.1
 github.com/go-test/deep
 # github.com/golang/protobuf v1.2.0
@@ -10,7 +8,7 @@ github.com/golang/protobuf/proto
 github.com/google/uuid
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
-# github.com/opentracing/opentracing-go v1.0.2
+# github.com/opentracing/opentracing-go v1.1.0
 github.com/opentracing/opentracing-go
 github.com/opentracing/opentracing-go/log
 github.com/opentracing/opentracing-go/ext
@@ -33,7 +31,7 @@ github.com/prometheus/procfs
 github.com/prometheus/procfs/nfs
 github.com/prometheus/procfs/xfs
 github.com/prometheus/procfs/internal/util
-# github.com/uber/jaeger-client-go v2.15.0+incompatible
+# github.com/uber/jaeger-client-go v2.16.0+incompatible
 github.com/uber/jaeger-client-go/config
 github.com/uber/jaeger-client-go
 github.com/uber/jaeger-client-go/internal/baggage/remote
@@ -51,9 +49,7 @@ github.com/uber/jaeger-client-go/thrift-gen/zipkincore
 github.com/uber/jaeger-client-go/utils
 github.com/uber/jaeger-client-go/thrift-gen/baggage
 github.com/uber/jaeger-client-go/thrift-gen/agent
-# github.com/uber/jaeger-lib v1.5.0
+# github.com/uber/jaeger-lib v2.0.0+incompatible
 github.com/uber/jaeger-lib/metrics
 # github.com/valyala/bytebufferpool v1.0.0
 github.com/valyala/bytebufferpool
-# golang.org/x/net v0.0.0-20181201002055-351d144fa1fc
-golang.org/x/net/context

@@ -91,13 +91,6 @@ func (h *ResponseHeader) SetContentRange(startPos, endPos, contentLength int) {
 	h.SetCanonical(strContentRange, h.bufKV.value)
 }
 
-// ForeachKey allows to traverse through all request headers
-func (h *RequestHeader) ForeachKey(handler func(key, val string) error) error {
-	h.VisitAll(func(key, value []byte) {
-		handler(string(key), string(value))
-	})
-}
-
 // SetByteRange sets 'Range: bytes=startPos-endPos' header.
 //
 //     * If startPos is negative, then 'bytes=-startPos' value is set.
@@ -1219,6 +1212,18 @@ func (h *RequestHeader) peek(key []byte) []byte {
 	default:
 		return peekArgBytes(h.h, key)
 	}
+}
+
+// ForeachKey allows to traverse through all request headers
+func (h *RequestHeader) ForeachKey(handler func(key, val string) error) error {
+	for i, n := 0, len(h.h); i < n; i++ {
+		kv := &h.h[i]
+		err := handler(b2s(kv.key), b2s(kv.value))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Cookie returns cookie for the given key.
