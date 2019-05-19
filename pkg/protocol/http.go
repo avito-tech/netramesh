@@ -82,19 +82,15 @@ func (h *HTTPHandler) HandleRequest(
 			h.logger.Debug("EOF while parsing request HTTP")
 			return w
 		}
-		if w == nil {
+		if req != nil && config.GetHTTPConfig().RoutingEnabled {
 			// here we can override destination (DNS allowed)
-			if config.GetHTTPConfig().RoutingEnabled {
-				if v := req.Header.Get(config.GetHTTPConfig().RoutingHeaderName); v != "" {
-					addr, err := getRoutingDestination(v, req.Host, originalDst)
-					if err != nil {
-						log.Warning(err.Error())
-						addrCh <- originalDst
-					} else {
-						addrCh <- addr
-					}
-				} else {
+			if v := req.Header.Get(config.GetHTTPConfig().RoutingHeaderName); v != "" {
+				addr, err := getRoutingDestination(v, req.Host, originalDst)
+				if err != nil {
+					log.Warning(err.Error())
 					addrCh <- originalDst
+				} else {
+					addrCh <- addr
 				}
 			} else {
 				addrCh <- originalDst
@@ -104,10 +100,11 @@ func (h *HTTPHandler) HandleRequest(
 			if w == nil {
 				return w
 			}
-
-			if isInboundConn {
-				netHTTPRequest.remoteAddr = r.RemoteAddr().String()
-			} else {
+		}
+		if isInboundConn {
+			netHTTPRequest.remoteAddr = r.RemoteAddr().String()
+		} else {
+			if w != nil {
 				netHTTPRequest.remoteAddr = w.RemoteAddr().String()
 			}
 		}
@@ -185,7 +182,9 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 	bufioHTTPReader := readerPool.Get().(*bufio.Reader)
 	bufioHTTPReader.Reset(readerWithFallback)
 	defer readerPool.Put(bufioHTTPReader)
-	defer netHTTPRequest.CleanUp()
+	if !config.GetHTTPConfig().RoutingEnabled {
+		defer netHTTPRequest.CleanUp()
+	}
 	for {
 		tmpWriter.Start()
 		resp, err := nhttp.ReadResponse(bufioHTTPReader, nil)

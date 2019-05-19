@@ -133,27 +133,41 @@ func HandleConnection(
 			addrCh,
 			originalDstAddr)
 
-		dstAddr := <-addrCh
+		defer netRequest.CleanUp()
 
-		tcpDstAddr, err := net.ResolveTCPAddr("tcp", dstAddr)
-		if err != nil {
-			logger.Warningf("Error while resolving tcp addr %s", originalDstAddr)
-			connCh <- nil
-			f.Close()
-			closeConn(logger, conn)
-			return
-		}
-		targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
-		if err != nil {
-			logger.Warning(err.Error())
-			connCh <- nil
-			f.Close()
-			closeConn(logger, conn)
-			return
-		}
+		var tConn *net.TCPConn
+		for {
+			dstAddr := <-addrCh
 
-		connCh <- targetConn
-		go TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
+			tcpDstAddr, err := net.ResolveTCPAddr("tcp", dstAddr)
+			if err != nil {
+				logger.Warningf("Error while resolving tcp addr %s", originalDstAddr)
+				connCh <- nil
+				f.Close()
+				closeConn(logger, conn)
+				return
+			}
+			targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
+			if err != nil {
+				logger.Warning(err.Error())
+				connCh <- nil
+				f.Close()
+				closeConn(logger, conn)
+				return
+			}
+
+			if tConn != nil {
+				closeConn(logger, tConn)
+			}
+			tConn = targetConn
+			connCh <- targetConn
+
+			go func() {
+				netHandler.HandleResponse(targetConn, conn, netRequest, isInBoundConn)
+				closeConn(logger, targetConn)
+			}()
+			//go TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
+		}
 	} else {
 		tcpDstAddr, err := net.ResolveTCPAddr("tcp", originalDstAddr)
 		if err != nil {
