@@ -1347,7 +1347,6 @@ func (h *RequestHeader) tryRead(r *bufio.Reader, n int) error {
 	if len(b) == 0 {
 		// treat all errors on the first byte read as EOF
 		if n == 1 || err == io.EOF {
-			fmt.Println("THIS ERRor")
 			return io.EOF
 		}
 

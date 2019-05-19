@@ -97,7 +97,7 @@ func HandleConnection(
 	ipBuilder = append(ipBuilder, strconv.Itoa(int(addr.Multiaddr[6]))...)
 	ipBuilder = append(ipBuilder, '.')
 	ipBuilder = append(ipBuilder, strconv.Itoa(int(addr.Multiaddr[7]))...)
-	ipv4 := string(ipBuilder)
+	ipv4 := protocol.B2s(ipBuilder)
 	ipBuilder = ipBuilder[:0]
 	addrPool.Put(ipBuilder)
 	port := uint16(addr.Multiaddr[2])<<8 + uint16(addr.Multiaddr[3])
@@ -108,7 +108,7 @@ func HandleConnection(
 	dstAddrBuilder = append(dstAddrBuilder, ipv4...)
 	dstAddrBuilder = append(dstAddrBuilder, ':')
 	dstAddrBuilder = append(dstAddrBuilder, strconv.Itoa(int(port))...)
-	originalDstAddr := string(dstAddrBuilder)
+	originalDstAddr := protocol.B2s(dstAddrBuilder)
 	dstAddrBuilder = dstAddrBuilder[:0]
 	addrPool.Put(dstAddrBuilder)
 

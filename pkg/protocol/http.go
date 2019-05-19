@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"reflect"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
@@ -90,7 +92,7 @@ func (h *HTTPHandler) HandleRequest(
 		if w == nil {
 			// here we can override destination (DNS allowed)
 			if config.GetHTTPConfig().RoutingEnabled && req != nil {
-				if v := req.Header.Peek(config.GetHTTPConfig().RoutingHeaderName); string(v) != "" {
+				if v := req.Header.Peek(config.GetHTTPConfig().RoutingHeaderName); !bytes.Equal(v, emptyBytes) {
 					addr, err := getRoutingDestination(string(v), string(req.Host()), originalDst)
 					if err != nil {
 						log.Warning(err.Error())
@@ -110,12 +112,11 @@ func (h *HTTPHandler) HandleRequest(
 				fhttp.RequestsPool.Put(req)
 				return w
 			}
-
-			if isInboundConn {
-				netHTTPRequest.remoteAddr = r.RemoteAddr().String()
-			} else {
-				netHTTPRequest.remoteAddr = w.RemoteAddr().String()
-			}
+		}
+		if isInboundConn {
+			netHTTPRequest.remoteAddr = r.RemoteAddr().String()
+		} else {
+			netHTTPRequest.remoteAddr = w.RemoteAddr().String()
 		}
 		if err != nil {
 			h.logger.Warningf("Error while parsing http request '%s'", err.Error())
@@ -177,14 +178,12 @@ func (h *HTTPHandler) HandleRequest(
 		_, err = fhttp.WriteRequestHeaders(req, bufioWriter)
 		if err != nil && err != io.ErrUnexpectedEOF {
 			h.logger.Errorf("Error while writing request headers to w: %s", err.Error())
-			fhttp.RequestsPool.Put(req)
 			return w
 		}
 
 		err = fhttp.ParseAndProxyRequestBody(req, bufioHTTPReader, bufioWriter)
 		if err != nil && err != io.ErrUnexpectedEOF {
 			h.logger.Errorf("Error while writing request to w: %s", err.Error())
-			fhttp.RequestsPool.Put(req)
 			return w
 		}
 		bufioWriter.Flush()
@@ -192,8 +191,6 @@ func (h *HTTPHandler) HandleRequest(
 		if err != nil && err != io.ErrUnexpectedEOF {
 			h.logger.Errorf("Error while writing request to w: %s", err.Error())
 		}
-
-		fhttp.RequestsPool.Put(req)
 	}
 
 	return w
@@ -282,7 +279,6 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 
 		netHTTPRequest.SetHTTPResponse(resp)
 		netHTTPRequest.StopRequest()
-		//resp.Reset()
 		fhttp.ResponsePool.Put(resp)
 	}
 }
@@ -315,7 +311,7 @@ func (nr *NetHTTPRequest) StartRequest() {
 	}
 	httpRequest := request.(*fhttp.Request)
 
-	wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, httpRequest.Header)
+	wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, opentracing.TextMapReader(&httpRequest.Header))
 
 	operation := httpRequest.URI().Path()
 	if !nr.isInbound {
@@ -326,13 +322,13 @@ func (nr *NetHTTPRequest) StartRequest() {
 	if err != nil {
 		nr.logger.Infof("Carrier extract error: %s", err.Error())
 		span = opentracing.StartSpan(
-			string(operation),
+			B2s(operation),
 		)
 
 		if nr.isInbound {
 			context := span.Context().(jaeger.SpanContext)
 			nr.tracingContextMapping.SetDefault(
-				string(httpRequest.Header.Peek(httpConfig.RequestIdHeaderName)),
+				B2s(httpRequest.Header.Peek(httpConfig.RequestIdHeaderName)),
 				context,
 			)
 
@@ -340,15 +336,15 @@ func (nr *NetHTTPRequest) StartRequest() {
 				// prefer httpConfig iteration, headers are already parsed into a map
 				for headerName, tagName := range httpConfig.HeadersMap {
 					if val := httpRequest.Header.Peek(headerName); !bytes.Equal(val, emptyBytes) {
-						span.SetTag(tagName, string(val))
+						span.SetTag(tagName, B2s(val))
 					}
 				}
 			}
 			if len(httpConfig.CookiesMap) > 0 {
 				// prefer cookies list iteration (there is no pre-parsed cookies list)
 				httpRequest.Header.VisitAllCookie(func(key, value []byte) {
-					if tagName, ok := httpConfig.CookiesMap[string(key)]; ok {
-						span.SetTag(tagName, string(value))
+					if tagName, ok := httpConfig.CookiesMap[B2s(key)]; ok {
+						span.SetTag(tagName, B2s(value))
 					}
 				})
 			}
@@ -363,12 +359,12 @@ func (nr *NetHTTPRequest) StartRequest() {
 		if nr.isInbound {
 			context := wireContext.(jaeger.SpanContext)
 			nr.tracingContextMapping.SetDefault(
-				string(httpRequest.Header.Peek(httpConfig.RequestIdHeaderName)),
+				B2s(httpRequest.Header.Peek(httpConfig.RequestIdHeaderName)),
 				context,
 			)
 		}
 		span = opentracing.StartSpan(
-			string(operation),
+			B2s(operation),
 			opentracing.ChildOf(wireContext),
 		)
 	}
@@ -401,6 +397,9 @@ func (nr *NetHTTPRequest) StopRequest() {
 			requestSpan.Finish()
 		}
 	}
+	if request != nil {
+		fhttp.RequestsPool.Put(request)
+	}
 }
 
 func (nr *NetHTTPRequest) CleanUp() {
@@ -420,15 +419,15 @@ func (nr *NetHTTPRequest) fillSpan(
 	}
 	span.SetTag("remote_addr", nr.remoteAddr)
 	if req != nil {
-		span.SetTag("http.host", string(req.Host()))
-		span.SetTag("http.path", string(req.URI().Path()))
+		span.SetTag("http.host", B2s(req.Header.Host()))
+		span.SetTag("http.path", B2s(req.URI().Path()))
 		span.SetTag("http.request_size", req.Header.ContentLength())
-		span.SetTag("http.method", string(req.Header.Method()))
+		span.SetTag("http.method", B2s(req.Header.Method()))
 		if userAgent := req.Header.UserAgent(); !bytes.Equal(userAgent, emptyBytes) {
-			span.SetTag("http.user_agent", string(userAgent))
+			span.SetTag("http.user_agent", B2s(userAgent))
 		}
 		if requestID := req.Header.Peek(config.GetHTTPConfig().RequestIdHeaderName); !bytes.Equal(requestID, emptyBytes) {
-			span.SetTag("http.request_id", string(requestID))
+			span.SetTag("http.request_id", B2s(requestID))
 		}
 	}
 	if resp != nil {
@@ -511,4 +510,27 @@ func getRoutingDestination(routingValue string, host string, originalDst string)
 		}
 	}
 	return originalDst, nil
+}
+
+// B2s converts byte slice to a string without memory allocation.
+// See https://groups.google.com/forum/#!msg/Golang-Nuts/ENgbUzYvCuU/90yGx7GUAgAJ .
+//
+// Note it may break if string and/or slice header will change
+// in the future go versions.
+func B2s(b []byte) string {
+	return *(*string)(unsafe.Pointer(&b))
+}
+
+// s2b converts string to a byte slice without memory allocation.
+//
+// Note it may break if string and/or slice header will change
+// in the future go versions.
+func s2b(s string) []byte {
+	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
+	bh := reflect.SliceHeader{
+		Data: sh.Data,
+		Len:  sh.Len,
+		Cap:  sh.Len,
+	}
+	return *(*[]byte)(unsafe.Pointer(&bh))
 }
