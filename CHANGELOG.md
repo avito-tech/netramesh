@@ -1,3 +1,7 @@
+# 0.6
+- Routing context added
+- Dockerfile for delve debug
+
 # 0.5
 - Entrypoint renamed to `netramesh` (breaking change!)
 - Added HTTP routing logic
