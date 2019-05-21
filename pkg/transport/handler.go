@@ -166,7 +166,6 @@ func HandleConnection(
 				netHandler.HandleResponse(targetConn, conn, netRequest, isInBoundConn)
 				closeConn(logger, targetConn)
 			}()
-			//go TcpCopyResponse(logger, targetConn, conn, netRequest, netHandler, isInBoundConn, f)
 		}
 	} else {
 		tcpDstAddr, err := net.ResolveTCPAddr("tcp", originalDstAddr)
