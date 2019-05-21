@@ -3,14 +3,15 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
-	"github.com/patrickmn/go-cache"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	jaegercfg "github.com/uber/jaeger-client-go/config"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+
+	"github.com/opentracing/opentracing-go"
+	"github.com/patrickmn/go-cache"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	jaegercfg "github.com/uber/jaeger-client-go/config"
 
 	"github.com/Lookyan/netramesh/internal/config"
 	"github.com/Lookyan/netramesh/pkg/estabcache"
