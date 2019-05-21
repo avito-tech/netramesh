@@ -7,7 +7,6 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/patrickmn/go-cache"
@@ -82,10 +81,9 @@ func main() {
 		config.GetNetraConfig().TracingContextCleanupInterval,
 	)
 
-	// have no usage yet:
 	routingInfoContextMapping := cache.New(
-		5*time.Second,
-		5*time.Second,
+		config.GetNetraConfig().RoutingContextExpiration,
+		config.GetNetraConfig().RoutingContextCleanupInterval,
 	)
 
 	protocol.InitHandlerRequest(logger, tracingContextMapping, routingInfoContextMapping)

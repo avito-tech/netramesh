@@ -23,6 +23,8 @@ type NetraConfig struct {
 	ServiceName                   string
 	TracingContextExpiration      time.Duration
 	TracingContextCleanupInterval time.Duration
+	RoutingContextExpiration      time.Duration
+	RoutingContextCleanupInterval time.Duration
 	LoggerLevel                   log.Level
 	HTTPProtoPorts                map[string]struct{}
 }
@@ -33,6 +35,8 @@ var netraConfig = NetraConfig{
 	PrometheusPort:                14958,
 	TracingContextExpiration:      5 * time.Second,
 	TracingContextCleanupInterval: 1 * time.Second,
+	RoutingContextExpiration:      5 * time.Second,
+	RoutingContextCleanupInterval: 1 * time.Second,
 	HTTPProtoPorts:                make(map[string]struct{}),
 }
 
@@ -74,6 +78,8 @@ const (
 	envNetraPrometheusPort                = "NETRA_PROMETHEUS_PORT"
 	envNetraTracingContextExpiration      = "NETRA_TRACING_CONTEXT_EXPIRATION_MILLISECONDS"
 	envNetraTracingContextCleanupInterval = "NETRA_TRACING_CONTEXT_CLEANUP_INTERVAL"
+	envNetraRoutingContextExpiration      = "NETRA_ROUTING_CONTEXT_EXPIRATION_MILLISECONDS"
+	envNetraRoutingContextCleanupInterval = "NETRA_ROUTING_CONTEXT_CLEANUP_INTERVAL"
 	envNetraHTTPPorts                     = "NETRA_HTTP_PORTS"
 	envHttpHeaderTagMap                   = "HTTP_HEADER_TAG_MAP"
 	envHttpCookieTagMap                   = "HTTP_COOKIE_TAG_MAP"
@@ -141,6 +147,20 @@ func GlobalConfigFromENV(logger *log.Logger) error {
 			return err
 		}
 		netraConfig.TracingContextCleanupInterval = time.Duration(c) * time.Millisecond
+	}
+	if v := os.Getenv(envNetraRoutingContextExpiration); v != "" {
+		exp, err := strconv.Atoi(v)
+		if err != nil {
+			return err
+		}
+		netraConfig.RoutingContextExpiration = time.Duration(exp) * time.Millisecond
+	}
+	if v := os.Getenv(envNetraRoutingContextCleanupInterval); v != "" {
+		c, err := strconv.Atoi(v)
+		if err != nil {
+			return err
+		}
+		netraConfig.RoutingContextCleanupInterval = time.Duration(c) * time.Millisecond
 	}
 	if v := os.Getenv(envNetraHTTPPorts); v != "" {
 		ports := strings.Split(v, ",")

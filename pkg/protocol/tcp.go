@@ -61,10 +61,8 @@ func NewNetTCPRequest(logger *log.Logger) *NetTCPRequest {
 	return &NetTCPRequest{}
 }
 
-func (r *NetTCPRequest) StartRequest() {
+func (r *NetTCPRequest) StartRequest() {}
 
-}
+func (r *NetTCPRequest) StopRequest() {}
 
-func (r *NetTCPRequest) StopRequest() {
-
-}
+func (r *NetTCPRequest) CleanUp() {}
