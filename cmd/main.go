@@ -3,16 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
-	"time"
-
 	"github.com/opentracing/opentracing-go"
 	"github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
+	"net"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
 
 	"github.com/Lookyan/netramesh/internal/config"
 	"github.com/Lookyan/netramesh/pkg/estabcache"
@@ -82,10 +80,9 @@ func main() {
 		config.GetNetraConfig().TracingContextCleanupInterval,
 	)
 
-	// have no usage yet:
 	routingInfoContextMapping := cache.New(
-		5*time.Second,
-		5*time.Second,
+		config.GetNetraConfig().RoutingContextExpiration,
+		config.GetNetraConfig().RoutingContextCleanupInterval,
 	)
 
 	protocol.InitHandlerRequest(logger, tracingContextMapping, routingInfoContextMapping)
