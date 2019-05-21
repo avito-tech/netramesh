@@ -82,14 +82,31 @@ func (h *HTTPHandler) HandleRequest(
 			h.logger.Debug("EOF while parsing request HTTP")
 			return w
 		}
+		routingContext, ok := h.routingInfoContextMapping.Get(
+			req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName),
+		)
+		currentRoutingHeaderValue := req.Header.Get(config.GetHTTPConfig().RoutingHeaderName)
+		if currentRoutingHeaderValue == "" {
+			if ok {
+				currentRoutingHeaderValue = routingContext.(string)
+			}
+		}
 		if req != nil && config.GetHTTPConfig().RoutingEnabled {
 			// here we can override destination (DNS allowed)
-			if v := req.Header.Get(config.GetHTTPConfig().RoutingHeaderName); v != "" {
-				addr, err := getRoutingDestination(v, req.Host, originalDst)
+			if currentRoutingHeaderValue != "" {
+				addr, err := getRoutingDestination(currentRoutingHeaderValue, req.Host, originalDst)
 				if err != nil {
 					log.Warning(err.Error())
 					addrCh <- originalDst
 				} else {
+					if isInboundConn {
+						if rID := req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName); rID != "" {
+							h.routingInfoContextMapping.SetDefault(
+								rID,
+								currentRoutingHeaderValue,
+							)
+						}
+					}
 					addrCh <- addr
 				}
 			} else {
