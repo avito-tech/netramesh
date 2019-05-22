@@ -1,3 +1,6 @@
+# 0.6.1
+- Routing logic bug fixed (request nil pointer dereference)
+
 # 0.6
 - Routing context added
 - Dockerfile for delve debug

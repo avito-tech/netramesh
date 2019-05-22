@@ -82,42 +82,55 @@ func (h *HTTPHandler) HandleRequest(
 			h.logger.Debug("EOF while parsing request HTTP")
 			return w
 		}
-		routingContext, ok := h.routingInfoContextMapping.Get(
-			req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName),
-		)
-		currentRoutingHeaderValue := req.Header.Get(config.GetHTTPConfig().RoutingHeaderName)
-		if currentRoutingHeaderValue == "" {
-			if ok {
-				currentRoutingHeaderValue = routingContext.(string)
-			}
-		}
-		if req != nil && config.GetHTTPConfig().RoutingEnabled {
-			// here we can override destination (DNS allowed)
-			if currentRoutingHeaderValue != "" {
-				addr, err := getRoutingDestination(currentRoutingHeaderValue, req.Host, originalDst)
-				if err != nil {
-					log.Warning(err.Error())
-					addrCh <- originalDst
-				} else {
-					if isInboundConn {
-						if rID := req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName); rID != "" {
-							h.routingInfoContextMapping.SetDefault(
-								rID,
-								currentRoutingHeaderValue,
-							)
-						}
-					}
-					addrCh <- addr
-				}
-			} else {
-				addrCh <- originalDst
+
+		if req != nil {
+			if req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName) == "" {
+				req.Header.Set(config.GetHTTPConfig().RequestIdHeaderName, uuid.New().String())
 			}
 
-			w = <-connCh
-			if w == nil {
-				return w
+			if config.GetHTTPConfig().RoutingEnabled {
+				currentRoutingHeaderValue := req.Header.Get(config.GetHTTPConfig().RoutingHeaderName)
+				if currentRoutingHeaderValue == "" {
+					routingContext, ok := h.routingInfoContextMapping.Get(
+						req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName),
+					)
+					if ok {
+						currentRoutingHeaderValue = routingContext.(string)
+					}
+				}
+
+				// here we can override destination (DNS allowed)
+				if currentRoutingHeaderValue != "" {
+					addr, err := getRoutingDestination(currentRoutingHeaderValue, req.Host, originalDst)
+					if err != nil {
+						log.Warning(err.Error())
+						addrCh <- originalDst
+					} else {
+						if isInboundConn {
+							if rID := req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName); rID != "" {
+								h.routingInfoContextMapping.SetDefault(
+									rID,
+									currentRoutingHeaderValue,
+								)
+							}
+						}
+						addrCh <- addr
+					}
+				} else {
+					addrCh <- originalDst
+				}
+
+				w = <-connCh
+				if w == nil {
+					return w
+				}
 			}
 		}
+
+		if w == nil {
+			return nil
+		}
+
 		if isInboundConn {
 			netHTTPRequest.remoteAddr = r.RemoteAddr().String()
 		} else {
@@ -153,10 +166,6 @@ func (h *HTTPHandler) HandleRequest(
 		}
 
 		tmpWriter.Stop()
-
-		if req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName) == "" {
-			req.Header.Set(config.GetHTTPConfig().RequestIdHeaderName, uuid.New().String())
-		}
 
 		if !isInboundConn {
 			// we need to generate context header and propagate it
