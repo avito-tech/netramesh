@@ -28,7 +28,7 @@ func (h *TCPHandler) HandleRequest(
 
 	if w == nil {
 		addrCh <- originalDst
-		w := <-connCh
+		w = <-connCh
 		if w == nil {
 			return w
 		}
