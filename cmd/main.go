@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	_ "net/http/pprof"
+	"net/http/pprof"
 	"os"
 
 	"github.com/opentracing/opentracing-go"
@@ -38,13 +38,17 @@ func main() {
 	}
 
 	go func() {
-		// pprof
+		mux := http.NewServeMux()
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 		logger.Error(
 			http.ListenAndServe(
-				fmt.Sprintf("0.0.0.0:%d", config.GetNetraConfig().PprofPort), nil))
+				fmt.Sprintf("0.0.0.0:%d", config.GetNetraConfig().PprofPort), mux))
 	}()
 	go func() {
-		// prometheus
 		logger.Error(
 			http.ListenAndServe(
 				fmt.Sprintf("0.0.0.0:%d", config.GetNetraConfig().PrometheusPort), promhttp.Handler()))
