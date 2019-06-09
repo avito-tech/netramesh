@@ -34,12 +34,6 @@ var writerPool = sync.Pool{
 	},
 }
 
-var queuePool = sync.Pool{
-	New: func() interface{} {
-		return NewQueue()
-	},
-}
-
 // HTTPHandler process HTTP protocol
 type HTTPHandler struct {
 	tracingContextMapping     *cache.Cache
@@ -75,11 +69,22 @@ func (h *HTTPHandler) HandleRequest(
 	bufioHTTPReader := readerPool.Get().(*bufio.Reader)
 	bufioHTTPReader.Reset(readerWithFallback)
 	defer readerPool.Put(bufioHTTPReader)
+	if config.GetHTTPConfig().RoutingEnabled {
+		defer func() {
+			if addrCh != nil {
+				close(addrCh)
+			}
+		}()
+	}
 	for {
 		tmpWriter.Start()
 		req, err := nhttp.ReadRequest(bufioHTTPReader)
 		if err == io.EOF {
 			h.logger.Debug("EOF while parsing request HTTP")
+			return w
+		}
+		if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
+			h.logger.Debug(err.Error())
 			return w
 		}
 
@@ -140,12 +145,16 @@ func (h *HTTPHandler) HandleRequest(
 		}
 		if err != nil {
 			h.logger.Warningf("Error while parsing http request '%s'", err.Error())
-			_, err = io.Copy(w, tmpWriter)
+			buf := bufferPool.Get().([]byte)
+			_, err = io.CopyBuffer(w, tmpWriter, buf)
+			bufferPool.Put(buf)
 			if err != nil {
 				h.logger.Warning(err.Error())
 			}
 			tmpWriter.Stop()
-			_, err = io.Copy(w, bufioHTTPReader)
+			buf = bufferPool.Get().([]byte)
+			_, err = io.CopyBuffer(w, bufioHTTPReader, buf)
+			bufferPool.Put(buf)
 			if err != nil {
 				h.logger.Warning(err.Error())
 			}
@@ -153,12 +162,16 @@ func (h *HTTPHandler) HandleRequest(
 		}
 		// avoid ws connections and other upgrade protos
 		if strings.ToLower(req.Header.Get("Connection")) == "upgrade" {
-			_, err = io.Copy(w, tmpWriter)
+			buf := bufferPool.Get().([]byte)
+			_, err = io.CopyBuffer(w, tmpWriter, buf)
+			bufferPool.Put(buf)
 			if err != nil {
 				h.logger.Warning(err.Error())
 			}
 			tmpWriter.Stop()
-			_, err = io.Copy(w, bufioHTTPReader)
+			buf = bufferPool.Get().([]byte)
+			_, err = io.CopyBuffer(w, bufioHTTPReader, buf)
+			bufferPool.Put(buf)
 			if err != nil {
 				h.logger.Warning(err.Error())
 			}
@@ -216,6 +229,11 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 		resp, err := nhttp.ReadResponse(bufioHTTPReader, nil)
 		if err == io.EOF {
 			h.logger.Debug("EOF while parsing response HTTP")
+			netHTTPRequest.StopRequest()
+			return
+		}
+		if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
+			h.logger.Debug(err.Error())
 			netHTTPRequest.StopRequest()
 			return
 		}
@@ -284,9 +302,9 @@ type NetHTTPRequest struct {
 
 func NewNetHTTPRequest(logger *log.Logger, isInbound bool, tracingContextMapping *cache.Cache) *NetHTTPRequest {
 	return &NetHTTPRequest{
-		httpRequests:          queuePool.Get().(*Queue),
-		httpResponses:         queuePool.Get().(*Queue),
-		spans:                 queuePool.Get().(*Queue),
+		httpRequests:          NewQueue(),
+		httpResponses:         NewQueue(),
+		spans:                 NewQueue(),
 		logger:                logger,
 		isInbound:             isInbound,
 		tracingContextMapping: tracingContextMapping,
@@ -389,9 +407,7 @@ func (nr *NetHTTPRequest) StopRequest() {
 }
 
 func (nr *NetHTTPRequest) CleanUp() {
-	queuePool.Put(nr.httpRequests)
-	queuePool.Put(nr.httpResponses)
-	queuePool.Put(nr.spans)
+	// here we can do some cleanup staff
 }
 
 func (nr *NetHTTPRequest) fillSpan(

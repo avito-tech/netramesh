@@ -27,6 +27,7 @@ func (h *TCPHandler) HandleRequest(
 	originalDst string) *net.TCPConn {
 
 	if w == nil {
+		defer close(addrCh)
 		addrCh <- originalDst
 		w = <-connCh
 		if w == nil {

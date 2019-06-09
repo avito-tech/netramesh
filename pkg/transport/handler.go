@@ -138,6 +138,12 @@ func HandleConnection(
 		var tConn *net.TCPConn
 		for {
 			dstAddr := <-addrCh
+			if dstAddr == "" {
+				f.Close()
+				closeConn(logger, conn)
+				close(connCh)
+				return
+			}
 
 			tcpDstAddr, err := net.ResolveTCPAddr("tcp", dstAddr)
 			if err != nil {
@@ -145,6 +151,7 @@ func HandleConnection(
 				connCh <- nil
 				f.Close()
 				closeConn(logger, conn)
+				close(connCh)
 				return
 			}
 			targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
@@ -153,6 +160,7 @@ func HandleConnection(
 				connCh <- nil
 				f.Close()
 				closeConn(logger, conn)
+				close(connCh)
 				return
 			}
 
