@@ -1,7 +1,5 @@
 module github.com/Lookyan/netramesh
 
-go 1.12
-
 require (
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
 	github.com/google/uuid v1.1.0
@@ -14,4 +12,12 @@ require (
 	github.com/uber/jaeger-client-go v2.15.0+incompatible
 	github.com/uber/jaeger-lib v1.5.0 // indirect
 	go.uber.org/atomic v1.3.2 // indirect
+	golang.org/x/net v0.0.0-20181201002055-351d144fa1fc
+	golang.org/x/text v0.3.2 // indirect
 )
+
+replace golang.org/x/crypto => ./internal/patches/golang_org/x/crypto
+
+replace golang.org/x/net => ./internal/patches/golang_org/x/net
+
+replace golang.org/x/text => ./internal/patches/golang_org/x/text

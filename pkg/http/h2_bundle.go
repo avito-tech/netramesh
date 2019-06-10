@@ -44,9 +44,9 @@ import (
 	"sync"
 	"time"
 
-	"golang_org/x/net/http/httpguts"
-	"golang_org/x/net/http2/hpack"
-	"golang_org/x/net/idna"
+	"golang.org/x/net/http/httpguts"
+	"golang.org/x/net/http2/hpack"
+	"golang.org/x/net/idna"
 )
 
 // A list of the possible cipher suite ids. Taken from
