@@ -1,4 +1,7 @@
-SHELL := /bin/bash -euo pipefail
+SHELL   := /bin/bash -euo pipefail
+TIMEOUT := 1s
+GOFLAGS := -mod=vendor
+
 
 .PHONY: deps
 deps:
@@ -6,7 +9,7 @@ deps:
 
 .PHONY: update
 update:
-	@go get -mod= -u
+	@go get -d -mod= -u
 
 
 .PHONY: format
