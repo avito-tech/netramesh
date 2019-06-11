@@ -1,3 +1,9 @@
+# 0.6.2
+- Goroutine leak with routing logic fixed
+- Fixed race condition on http req and resp queues
+- Added cookie routing logic retrieval
+- pprof initialization refactored
+
 # 0.6.1
 - Routing logic bug fixed (request nil pointer dereference)
 

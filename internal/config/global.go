@@ -14,6 +14,7 @@ const (
 	defaultXSourceName         = "X-Source"
 	defaultRoutingHeaderName   = "X-Route"
 	defaultXSourceValue        = "netra"
+	defaultRoutingCookieName   = "X-Route"
 )
 
 type NetraConfig struct {
@@ -49,23 +50,27 @@ func SetServiceName(serviceName string) {
 }
 
 type HTTPConfig struct {
-	HeadersMap          map[string]string
-	CookiesMap          map[string]string
-	RequestIdHeaderName string
-	XSourceHeaderName   string
-	XSourceValue        string
-	RoutingEnabled      bool
-	RoutingHeaderName   string
+	HeadersMap           map[string]string
+	CookiesMap           map[string]string
+	RequestIdHeaderName  string
+	XSourceHeaderName    string
+	XSourceValue         string
+	RoutingEnabled       bool
+	RoutingHeaderName    string
+	RoutingCookieEnabled bool
+	RoutingCookieName    string
 }
 
 var httpConfig = HTTPConfig{
-	HeadersMap:          map[string]string{},
-	CookiesMap:          map[string]string{},
-	RequestIdHeaderName: defaultRequestIdHeaderName,
-	XSourceHeaderName:   defaultXSourceName,
-	XSourceValue:        defaultXSourceValue,
-	RoutingEnabled:      false,
-	RoutingHeaderName:   defaultRoutingHeaderName,
+	HeadersMap:           map[string]string{},
+	CookiesMap:           map[string]string{},
+	RequestIdHeaderName:  defaultRequestIdHeaderName,
+	XSourceHeaderName:    defaultXSourceName,
+	XSourceValue:         defaultXSourceValue,
+	RoutingEnabled:       false,
+	RoutingHeaderName:    defaultRoutingHeaderName,
+	RoutingCookieEnabled: false,
+	RoutingCookieName:    defaultRoutingCookieName,
 }
 
 func GetHTTPConfig() HTTPConfig {
@@ -88,6 +93,8 @@ const (
 	envHTTPXSourceValue                   = "NETRA_HTTP_X_SOURCE_VALUE"
 	envHTTPRoutingEnabled                 = "NETRA_HTTP_ROUTING_ENABLED"
 	envHTTPRoutingHeader                  = "NETRA_HTTP_ROUTING_HEADER_NAME"
+	envHTTPRoutingCookieEnabled           = "NETRA_HTTP_ROUTING_COOKIE_ENABLED"
+	envHTTPRoutingCookieName              = "NETRA_HTTP_ROUTING_COOKIE_NAME"
 )
 
 func GlobalConfigFromENV(logger *log.Logger) error {
@@ -189,6 +196,14 @@ func GlobalConfigFromENV(logger *log.Logger) error {
 	}
 	if v := os.Getenv(envHTTPRoutingHeader); v != "" {
 		httpConfig.RoutingHeaderName = v
+	}
+	if v := os.Getenv(envHTTPRoutingCookieEnabled); v != "" {
+		if v == "true" {
+			httpConfig.RoutingCookieEnabled = true
+		}
+	}
+	if v := os.Getenv(envHTTPRoutingCookieName); v != "" {
+		httpConfig.RoutingCookieName = v
 	}
 
 	return nil

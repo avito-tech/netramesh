@@ -94,7 +94,17 @@ func (h *HTTPHandler) HandleRequest(
 			}
 
 			if config.GetHTTPConfig().RoutingEnabled {
-				currentRoutingHeaderValue := req.Header.Get(config.GetHTTPConfig().RoutingHeaderName)
+				// check Cookie if enabled
+				currentRoutingHeaderValue := ""
+				if config.GetHTTPConfig().RoutingCookieEnabled {
+					cookie, err := req.Cookie(config.GetHTTPConfig().RoutingCookieName)
+					if err == nil {
+						currentRoutingHeaderValue = cookie.Value
+					}
+				}
+				if currentRoutingHeaderValue == "" {
+					currentRoutingHeaderValue = req.Header.Get(config.GetHTTPConfig().RoutingHeaderName)
+				}
 				if currentRoutingHeaderValue == "" {
 					routingContext, ok := h.routingInfoContextMapping.Get(
 						req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName),
