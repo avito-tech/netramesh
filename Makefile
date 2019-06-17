@@ -1,6 +1,7 @@
 SHELL   := /bin/bash -euo pipefail
 TIMEOUT := 1s
 GOFLAGS := -mod=vendor
+PKGS    := go list ./... | grep -v pkg/http
 
 
 .PHONY: deps
@@ -19,7 +20,11 @@ format:
 
 .PHONY: test
 test:
-	@go test -race -timeout 1s ./...
+	@$(PKGS) | xargs -I {} go test -race -timeout $(TIMEOUT) {}
+
+.PHONY: test-with-coverage
+test-with-coverage:
+	@$(PKGS) | xargs -I {} sh -c "go test -cover -timeout $(TIMEOUT) {} | column -t | sort -r"
 
 
 .PHONY: build
