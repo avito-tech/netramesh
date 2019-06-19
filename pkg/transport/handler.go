@@ -1,14 +1,14 @@
 package transport
 
 import (
+	"container/list"
+	"github.com/patrickmn/go-cache"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
-
-	"github.com/patrickmn/go-cache"
 
 	"github.com/Lookyan/netramesh/internal/config"
 	"github.com/Lookyan/netramesh/pkg/estabcache"
@@ -53,7 +53,7 @@ func TcpCopyResponse(
 	isInBoundConn bool,
 	f *os.File,
 ) {
-	netHandler.HandleResponse(r, w, netRequest, isInBoundConn)
+	netHandler.HandleResponse(r, w, netRequest, isInBoundConn, false)
 	f.Close()
 	closeConn(logger, r)
 	closeConn(logger, w)
@@ -136,12 +136,21 @@ func HandleConnection(
 		defer netRequest.CleanUp()
 
 		var tConn *net.TCPConn
+		callCh := make(chan func(), 1000000)
+		wg := sync.WaitGroup{}
+		go func() {
+			for f := range callCh {
+				f()
+				wg.Done()
+			}
+		}()
 		for {
 			dstAddr := <-addrCh
 			if dstAddr == "" {
 				f.Close()
 				closeConn(logger, conn)
 				close(connCh)
+				close(callCh)
 				return
 			}
 
@@ -152,6 +161,7 @@ func HandleConnection(
 				f.Close()
 				closeConn(logger, conn)
 				close(connCh)
+				close(callCh)
 				return
 			}
 			targetConn, err := net.DialTCP("tcp", nil, tcpDstAddr)
@@ -161,20 +171,24 @@ func HandleConnection(
 				f.Close()
 				closeConn(logger, conn)
 				close(connCh)
+				close(callCh)
 				return
 			}
 
 			if tConn != nil {
-				closeConn(logger, tConn)
+				//closeConn(logger, tConn)
 			}
 			tConn = targetConn
 			connCh <- targetConn
-
-			go func() {
-				netHandler.HandleResponse(targetConn, conn, netRequest, isInBoundConn)
+			respRoutine := func() {
+				netHandler.HandleResponse(targetConn, conn, netRequest, isInBoundConn, true)
 				closeConn(logger, targetConn)
-			}()
+			}
+			wg.Add(1)
+			callCh <- respRoutine
 		}
+		wg.Wait()
+		close(callCh)
 	} else {
 		tcpDstAddr, err := net.ResolveTCPAddr("tcp", originalDstAddr)
 		if err != nil {
@@ -217,4 +231,44 @@ func closeConn(logger *log.Logger, conn *net.TCPConn) {
 	conn.CloseWrite()
 	conn.Close()
 	logger.Debug("Closed conn")
+}
+
+type MutexQueue struct {
+	muList *list.List
+	mu     sync.Mutex
+}
+
+// MutexQueue implements mutex queue with FIFO support
+func NewMutexQueue() *MutexQueue {
+	return &MutexQueue{
+		muList: list.New(),
+	}
+}
+
+func (mq *MutexQueue) Lock() {
+	mq.mu.Lock()
+	if mq.muList.Len() == 0 {
+		m := &sync.Mutex{}
+		mq.muList.PushBack(m)
+		m.Lock()
+		mq.mu.Unlock()
+		return
+	}
+
+	tailMutex := mq.muList.Back().Value.(*sync.Mutex)
+	m := &sync.Mutex{}
+	mq.muList.PushBack(m)
+	m.Lock()
+
+	mq.mu.Unlock()
+	tailMutex.Lock()
+	tailMutex.Unlock()
+}
+
+func (mq *MutexQueue) Unlock() {
+	mq.mu.Lock()
+	frontMuEl := mq.muList.Front()
+	frontMu := mq.muList.Remove(frontMuEl).(*sync.Mutex)
+	frontMu.Unlock()
+	mq.mu.Unlock()
 }
