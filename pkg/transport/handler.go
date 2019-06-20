@@ -135,8 +135,7 @@ func HandleConnection(
 
 		defer netRequest.CleanUp()
 
-		var tConn *net.TCPConn
-		callCh := make(chan func(), 1000000)
+		callCh := make(chan func(), 10)
 		wg := sync.WaitGroup{}
 		go func() {
 			for f := range callCh {
@@ -175,10 +174,6 @@ func HandleConnection(
 				return
 			}
 
-			if tConn != nil {
-				//closeConn(logger, tConn)
-			}
-			tConn = targetConn
 			connCh <- targetConn
 			respRoutine := func() {
 				netHandler.HandleResponse(targetConn, conn, netRequest, isInBoundConn, true)

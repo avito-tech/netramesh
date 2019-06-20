@@ -514,6 +514,10 @@ func getRoutingDestination(routingValue string, host string, originalDst string)
 		if len(keyval) < 2 {
 			return "", fmt.Errorf("malformed routing header: '%s'", routingValue)
 		}
+		// avoid infinite route loops
+		if keyval[0] == keyval[1] {
+			continue
+		}
 		if host == keyval[0] {
 			if !strings.Contains(keyval[1], ":") {
 				keyval[1] += ":80"
