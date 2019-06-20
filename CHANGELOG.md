@@ -1,3 +1,7 @@
+# 0.6.3
+- Fixed response race condition with routing logic enabled
+- Fixed routing infinite loop when requests route host to itself
+
 # 0.6.2
 - Goroutine leak with routing logic fixed
 - Fixed race condition on http req and resp queues
