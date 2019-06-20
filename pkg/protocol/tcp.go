@@ -45,7 +45,7 @@ func (h *TCPHandler) HandleRequest(
 	return w
 }
 
-func (h *TCPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool) {
+func (h *TCPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool, forceClose bool) {
 	buf := bufferPool.Get().([]byte)
 	written, err := io.CopyBuffer(w, r, buf)
 	bufferPool.Put(buf)

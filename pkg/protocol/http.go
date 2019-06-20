@@ -223,7 +223,7 @@ func (h *HTTPHandler) HandleRequest(
 	return w
 }
 
-func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool) {
+func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool, forceClose bool) {
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
 	tmpWriter := NewTempWriter()
 	defer tmpWriter.Close()
@@ -239,12 +239,10 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 		resp, err := nhttp.ReadResponse(bufioHTTPReader, nil)
 		if err == io.EOF {
 			h.logger.Debug("EOF while parsing response HTTP")
-			netHTTPRequest.StopRequest()
 			return
 		}
 		if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
 			h.logger.Debug(err.Error())
-			netHTTPRequest.StopRequest()
 			return
 		}
 		if err != nil {
@@ -258,7 +256,6 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 			if err != nil {
 				h.logger.Warning(err.Error())
 			}
-			netHTTPRequest.StopRequest()
 			return
 		}
 
@@ -297,6 +294,9 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 
 		netHTTPRequest.SetHTTPResponse(resp)
 		netHTTPRequest.StopRequest()
+		if forceClose {
+			r.Close()
+		}
 	}
 }
 
@@ -513,6 +513,10 @@ func getRoutingDestination(routingValue string, host string, originalDst string)
 		keyval := strings.Split(p, "=")
 		if len(keyval) < 2 {
 			return "", fmt.Errorf("malformed routing header: '%s'", routingValue)
+		}
+		// avoid infinite route loops
+		if keyval[0] == keyval[1] {
+			continue
 		}
 		if host == keyval[0] {
 			if !strings.Contains(keyval[1], ":") {

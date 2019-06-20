@@ -16,7 +16,7 @@ type NetHandler interface {
 		isInboundConn bool,
 		originalDst string) *net.TCPConn
 	// HandleResponse should get all data from r, process it and write result to w
-	HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool)
+	HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest NetRequest, isInboundConn bool, forceClose bool)
 }
 
 var bufferPool = sync.Pool{
