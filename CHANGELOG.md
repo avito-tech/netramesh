@@ -1,3 +1,6 @@
+# 0.6.4
+- Fixed 100 continue response stuck with routing logic
+
 # 0.6.3
 - Fixed response race condition with routing logic enabled
 - Fixed routing infinite loop when requests route host to itself

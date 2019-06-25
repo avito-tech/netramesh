@@ -294,7 +294,8 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 
 		netHTTPRequest.SetHTTPResponse(resp)
 		netHTTPRequest.StopRequest()
-		if forceClose {
+		// in case of 100 response we can't close connection (server can keep on sending responses)
+		if forceClose && resp.StatusCode != 100 {
 			r.Close()
 		}
 	}
