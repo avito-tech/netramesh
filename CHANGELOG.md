@@ -1,3 +1,7 @@
+# 0.7
+- Breaking change: `;` replaced with `,` for routing header value
+- Fixed HTTP head requests with keep alive logic problem
+
 # 0.6.4
 - Fixed 100 continue response stuck with routing logic
 

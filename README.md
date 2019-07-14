@@ -77,7 +77,7 @@ HTTP_COOKIE_TAG_MAP | comma separated HTTP cookie value to span tag conversion (
 NETRA_HTTP_X_SOURCE_HEADER_NAME | source HTTP header name. Automatically added to each outbound request in case this header absent in request (defaults to X-Source)
 NETRA_HTTP_X_SOURCE_VALUE | source HTTP header value (defaults to netra)
 NETRA_HTTP_ROUTING_ENABLED | set this to value "true" to enable HTTP header routing feature (disabled by default)
-NETRA_HTTP_ROUTING_HEADER_NAME | header name for HTTP header routing (defaults to `X-Route`). Value of header should be in the following format: `host1=host2;host3=host4` to route host1 to host2 and host3 to host4.
+NETRA_HTTP_ROUTING_HEADER_NAME | header name for HTTP header routing (defaults to `X-Route`). Value of header should be in the following format: `host1=host2,host3=host4` to route host1 to host2 and host3 to host4.
 NETRA_ROUTING_CONTEXT_EXPIRATION_MILLISECONDS | routing context mapping cache expiration in milliseconds (defaults to 5000)
 NETRA_ROUTING_CONTEXT_CLEANUP_INTERVAL | routing context cleanup interval in milliseconds (defaults to 1000)
 NETRA_HTTP_ROUTING_COOKIE_ENABLED | set this to value "true" to enable routing logic from HTTP Cookie (should be enabled with NETRA_HTTP_ROUTING_ENABLED). Cookie has priority to routing HTTP header (disabled by default)
