@@ -62,6 +62,7 @@ func (h *HTTPHandler) HandleRequest(
 	netRequest NetRequest,
 	isInboundConn bool,
 	originalDst string) *net.TCPConn {
+
 	netHTTPRequest := netRequest.(*NetHTTPRequest)
 	tmpWriter := NewTempWriter()
 	defer tmpWriter.Close()
@@ -278,6 +279,12 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 		// if method == HEAD and content-length != 0, it will hang on read with LimitReader, handle this:
 		rq := netHTTPRequest.httpRequests.Peek()
 		if rq != nil && rq.(*nhttp.Request).Method == nhttp.MethodHead {
+			// server side can hold connection which leads to stuck Close() method in Write(w)
+			if forceClose && resp.StatusCode != 100 {
+				r.CloseRead()
+				r.CloseWrite()
+				r.Close()
+			}
 			err = resp.Write(w)
 		} else {
 			bufioWriter := writerPool.Get().(*bufio.Writer)
@@ -296,6 +303,8 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 		netHTTPRequest.StopRequest()
 		// in case of 100 response we can't close connection (server can keep on sending responses)
 		if forceClose && resp.StatusCode != 100 {
+			r.CloseRead()
+			r.CloseWrite()
 			r.Close()
 		}
 	}
@@ -509,7 +518,7 @@ func (q *Queue) Clear() {
 }
 
 func getRoutingDestination(routingValue string, host string, originalDst string) (string, error) {
-	pairs := strings.Split(routingValue, ";")
+	pairs := strings.Split(routingValue, ",")
 	for _, p := range pairs {
 		keyval := strings.Split(p, "=")
 		if len(keyval) < 2 {
