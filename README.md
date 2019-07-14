@@ -2,7 +2,7 @@
 
 ![netramesh](media/logo.png)
 
-[![CircleCI](https://circleci.com/gh/Lookyan/netramesh/tree/master.svg?style=svg)](https://circleci.com/gh/Lookyan/netramesh/tree/master)
+[![CircleCI](https://circleci.com/gh/avito-tech/netramesh/tree/master.svg?style=svg)](https://circleci.com/gh/avito-tech/netramesh/tree/master)
 
 Ultra light service mesh has main goals:
 
