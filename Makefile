@@ -2,7 +2,7 @@ SHELL   := /bin/bash -euo pipefail
 TIMEOUT := 1s
 GOFLAGS := -mod=vendor
 PKGS    := go list ./... | grep -v pkg/http
-
+TARGET  := netramesh
 
 .PHONY: deps
 deps:
@@ -26,10 +26,16 @@ test:
 test-with-coverage:
 	@$(PKGS) | xargs -I {} sh -c "go test -cover -timeout $(TIMEOUT) {} | column -t | sort -r"
 
+.PHONY: clean
+clean:
+	rm -rf bin/
 
 .PHONY: build
 build:
-	@echo not implemented yet
+	mkdir -p bin/
+	for target_os in "darwin" "linux"; do \
+		GOOS=$$target_os go build -o ./bin/$(TARGET)_$$target_os ./cmd ;\
+	done
 
 .PHONY: docker-build
 docker-build:
