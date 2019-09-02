@@ -26,13 +26,8 @@ test:
 test-with-coverage:
 	@$(PKGS) | xargs -I {} sh -c "go test -cover -timeout $(TIMEOUT) {} | column -t | sort -r"
 
-.PHONY: clean
-clean:
-	rm -rf bin/
-
 .PHONY: build
 build:
-	mkdir -p bin/
 	for target_os in "darwin" "linux"; do \
 		GOOS=$$target_os go build -o ./bin/$(TARGET)_$$target_os ./cmd ;\
 	done
