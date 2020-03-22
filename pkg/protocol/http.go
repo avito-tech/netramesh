@@ -94,7 +94,7 @@ func (h *HTTPHandler) HandleRequest(
 				req.Header.Set(config.GetHTTPConfig().RequestIdHeaderName, uuid.New().String())
 			}
 
-			if config.GetHTTPConfig().RoutingEnabled {
+			if config.GetHTTPConfig().RoutingEnabled && !isInboundConn {
 				// check Cookie if enabled
 				currentRoutingHeaderValue := ""
 				if config.GetHTTPConfig().RoutingCookieEnabled {
@@ -112,6 +112,7 @@ func (h *HTTPHandler) HandleRequest(
 					)
 					if ok {
 						currentRoutingHeaderValue = routingContext.(string)
+						req.Header.Add(config.GetHTTPConfig().RoutingHeaderName, currentRoutingHeaderValue)
 					}
 				}
 
@@ -129,8 +130,10 @@ func (h *HTTPHandler) HandleRequest(
 									currentRoutingHeaderValue,
 								)
 							}
+							addrCh <- originalDst
+						} else {
+							addrCh <- addr
 						}
-						addrCh <- addr
 					}
 				} else {
 					addrCh <- originalDst
