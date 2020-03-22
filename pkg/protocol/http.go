@@ -94,7 +94,7 @@ func (h *HTTPHandler) HandleRequest(
 				req.Header.Set(config.GetHTTPConfig().RequestIdHeaderName, uuid.New().String())
 			}
 
-			if config.GetHTTPConfig().RoutingEnabled && !isInboundConn {
+			if config.GetHTTPConfig().RoutingEnabled {
 				// check Cookie if enabled
 				currentRoutingHeaderValue := ""
 				if config.GetHTTPConfig().RoutingCookieEnabled {
