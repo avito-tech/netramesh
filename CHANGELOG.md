@@ -1,3 +1,7 @@
+# 0.7.1
+- Fixed routing header propagation
+- Routing logic isn't applied for inbound requests anymore
+
 # 0.7
 - Breaking change: `;` replaced with `,` for routing header value
 - Fixed HTTP head requests with keep alive logic problem
