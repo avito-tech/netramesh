@@ -386,17 +386,18 @@ func (nr *NetHTTPRequest) StartRequest() {
 			)
 		}
 	} else {
+		span = opentracing.StartSpan(
+			operation,
+			opentracing.ChildOf(wireContext),
+		)
+
 		if nr.isInbound {
-			context := wireContext.(jaeger.SpanContext)
+			context := span.Context().(jaeger.SpanContext)
 			nr.tracingContextMapping.SetDefault(
 				httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
 				context,
 			)
 		}
-		span = opentracing.StartSpan(
-			operation,
-			opentracing.ChildOf(wireContext),
-		)
 	}
 
 	nr.spans.Push(span)
