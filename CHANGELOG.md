@@ -1,3 +1,6 @@
+# 0.7.2
+- Fixed parent span cache retrieval logic
+
 # 0.7.1
 - Fixed routing header propagation
 - Routing logic isn't applied for inbound requests anymore
