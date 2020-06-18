@@ -211,7 +211,9 @@ func (h *HTTPHandler) HandleRequest(
 		}
 
 		netHTTPRequest.SetHTTPRequest(req)
-		netHTTPRequest.StartRequest()
+		if !config.GetHTTPConfig().TracingIgnoredPaths[req.URL.Path] {
+			netHTTPRequest.StartRequest()
+		}
 
 		bufioWriter := writerPool.Get().(*bufio.Writer)
 		bufioWriter.Reset(w)
@@ -344,6 +346,7 @@ func (nr *NetHTTPRequest) StartRequest() {
 	wireContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, carrier)
 
 	operation := httpRequest.URL.Path
+
 	if !nr.isInbound {
 		operation = httpRequest.Host + httpRequest.URL.Path
 	}
@@ -406,6 +409,7 @@ func (nr *NetHTTPRequest) StartRequest() {
 func (nr *NetHTTPRequest) StopRequest() {
 	request := nr.httpRequests.Pop()
 	response := nr.httpResponses.Pop()
+
 	if request != nil && response != nil {
 		httpRequest := request.(*nhttp.Request)
 		httpResponse := response.(*nhttp.Response)

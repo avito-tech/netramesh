@@ -59,6 +59,7 @@ type HTTPConfig struct {
 	RoutingHeaderName    string
 	RoutingCookieEnabled bool
 	RoutingCookieName    string
+	TracingIgnoredPaths  map[string]bool
 }
 
 var httpConfig = HTTPConfig{
@@ -71,6 +72,7 @@ var httpConfig = HTTPConfig{
 	RoutingHeaderName:    defaultRoutingHeaderName,
 	RoutingCookieEnabled: false,
 	RoutingCookieName:    defaultRoutingCookieName,
+	TracingIgnoredPaths:  map[string]bool{},
 }
 
 func GetHTTPConfig() HTTPConfig {
@@ -95,6 +97,7 @@ const (
 	envHTTPRoutingHeader                  = "NETRA_HTTP_ROUTING_HEADER_NAME"
 	envHTTPRoutingCookieEnabled           = "NETRA_HTTP_ROUTING_COOKIE_ENABLED"
 	envHTTPRoutingCookieName              = "NETRA_HTTP_ROUTING_COOKIE_NAME"
+	envHTTPTracingIgnoredPaths            = "NETRA_HTTP_TRACING_IGNORED_PATHS"
 )
 
 func GlobalConfigFromENV(logger *log.Logger) error {
@@ -204,6 +207,14 @@ func GlobalConfigFromENV(logger *log.Logger) error {
 	}
 	if v := os.Getenv(envHTTPRoutingCookieName); v != "" {
 		httpConfig.RoutingCookieName = v
+	}
+
+	if v := os.Getenv(envHTTPTracingIgnoredPaths); v != "" {
+		paths := strings.Split(v, ",")
+		for _, path := range paths {
+			httpConfig.TracingIgnoredPaths[path] = true
+			logger.Infof("loaded ignored path: %s", path)
+		}
 	}
 
 	return nil
