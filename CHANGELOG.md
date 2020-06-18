@@ -1,3 +1,6 @@
+# 0.7.3
+- Fixed parent injecting logic
+
 # 0.7.2
 - Fixed parent span cache retrieval logic
 
