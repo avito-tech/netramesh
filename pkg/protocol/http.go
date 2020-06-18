@@ -381,19 +381,6 @@ func (nr *NetHTTPRequest) StartRequest() {
 					}
 				}
 			}
-			httpRequest.Header.Del("uber-trace-id")
-			span.Tracer().Inject(
-				span.Context(),
-				opentracing.HTTPHeaders,
-				opentracing.HTTPHeadersCarrier(httpRequest.Header),
-			)
-		} else {
-			httpRequest.Header.Del("uber-trace-id")
-			span.Tracer().Inject(
-				span.Context(),
-				opentracing.HTTPHeaders,
-				opentracing.HTTPHeadersCarrier(httpRequest.Header),
-			)
 		}
 	} else {
 		span = opentracing.StartSpan(
@@ -407,19 +394,13 @@ func (nr *NetHTTPRequest) StartRequest() {
 				httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
 				context,
 			)
-			httpRequest.Header.Del("uber-trace-id")
-			span.Tracer().Inject(
-				span.Context(),
-				opentracing.HTTPHeaders,
-				opentracing.HTTPHeadersCarrier(httpRequest.Header))
-		} else {
-			httpRequest.Header.Del("uber-trace-id")
-			span.Tracer().Inject(
-				span.Context(),
-				opentracing.HTTPHeaders,
-				opentracing.HTTPHeadersCarrier(httpRequest.Header))
 		}
 	}
+	httpRequest.Header.Del("uber-trace-id")
+	span.Tracer().Inject(
+		span.Context(),
+		opentracing.HTTPHeaders,
+		opentracing.HTTPHeadersCarrier(httpRequest.Header))
 
 	nr.spans.Push(span)
 }
