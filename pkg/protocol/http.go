@@ -195,15 +195,18 @@ func (h *HTTPHandler) HandleRequest(
 		tmpWriter.Stop()
 
 		if !isInboundConn {
-			// we need to generate context header and propagate it
-			tracingInfoByRequestID, ok := h.tracingContextMapping.Get(
-				req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName),
-			)
-			if ok {
-				//h.logger.Debugf("Found request-id matching: %#v", tracingInfoByRequestID)
-				tracingContext := tracingInfoByRequestID.(jaeger.SpanContext)
-				req.Header[jaeger.TraceContextHeaderName] = []string{tracingContext.String()}
-				//h.logger.Debugf("Outbound span: %s", tracingContext.String())
+			traceCtx := req.Header.Get(jaeger.TraceContextHeaderName)
+			if traceCtx == "" {
+				// we need to generate context header and propagate it
+				tracingInfoByRequestID, ok := h.tracingContextMapping.Get(
+					req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName),
+				)
+				if ok {
+					//h.logger.Debugf("Found request-id matching: %#v", tracingInfoByRequestID)
+					tracingContext := tracingInfoByRequestID.(jaeger.SpanContext)
+					req.Header[jaeger.TraceContextHeaderName] = []string{tracingContext.String()}
+					//h.logger.Debugf("Outbound span: %s", tracingContext.String())
+				}
 			}
 			if v := req.Header.Get(config.GetHTTPConfig().XSourceHeaderName); v == "" {
 				req.Header.Set(config.GetHTTPConfig().XSourceHeaderName, config.GetHTTPConfig().XSourceValue)
@@ -378,7 +381,14 @@ func (nr *NetHTTPRequest) StartRequest() {
 					}
 				}
 			}
+			httpRequest.Header.Del("uber-trace-id")
+			span.Tracer().Inject(
+				span.Context(),
+				opentracing.HTTPHeaders,
+				opentracing.HTTPHeadersCarrier(httpRequest.Header),
+			)
 		} else {
+			httpRequest.Header.Del("uber-trace-id")
 			span.Tracer().Inject(
 				span.Context(),
 				opentracing.HTTPHeaders,
@@ -397,6 +407,17 @@ func (nr *NetHTTPRequest) StartRequest() {
 				httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
 				context,
 			)
+			httpRequest.Header.Del("uber-trace-id")
+			span.Tracer().Inject(
+				span.Context(),
+				opentracing.HTTPHeaders,
+				opentracing.HTTPHeadersCarrier(httpRequest.Header))
+		} else {
+			httpRequest.Header.Del("uber-trace-id")
+			span.Tracer().Inject(
+				span.Context(),
+				opentracing.HTTPHeaders,
+				opentracing.HTTPHeadersCarrier(httpRequest.Header))
 		}
 	}
 
