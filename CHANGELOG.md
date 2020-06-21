@@ -1,3 +1,6 @@
+# 0.4.1
+- Bugfix port (parent span resolving)
+
 # 0.4
 - Added remote_addr tag to Jaeger
 - Added X-Source header to propagate origin service name which can be customized through `NETRA_HTTP_X_SOURCE_HEADER_NAME` and `NETRA_HTTP_X_SOURCE_VALUE` env variable

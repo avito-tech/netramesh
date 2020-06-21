@@ -102,15 +102,16 @@ func (h *HTTPHandler) HandleRequest(r *net.TCPConn, w *net.TCPConn, netRequest N
 		}
 
 		if !isInboundConn {
-			// we need to generate context header and propagate it
-			tracingInfoByRequestID, ok := h.tracingContextMapping.Get(
-				req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName),
-			)
-			if ok {
-				h.logger.Debugf("Found request-id matching: %#v", tracingInfoByRequestID)
-				tracingContext := tracingInfoByRequestID.(jaeger.SpanContext)
-				req.Header[jaeger.TraceContextHeaderName] = []string{tracingContext.String()}
-				h.logger.Debugf("Outbound span: %s", tracingContext.String())
+			traceCtx := req.Header.Get(jaeger.TraceContextHeaderName)
+			if traceCtx == "" {
+				// we need to generate context header and propagate it
+				tracingInfoByRequestID, ok := h.tracingContextMapping.Get(
+					req.Header.Get(config.GetHTTPConfig().RequestIdHeaderName),
+				)
+				if ok {
+					tracingContext := tracingInfoByRequestID.(jaeger.SpanContext)
+					req.Header[jaeger.TraceContextHeaderName] = []string{tracingContext.String()}
+				}
 			}
 			if v := req.Header.Get(config.GetHTTPConfig().XSourceHeaderName); v == "" {
 				req.Header.Set(config.GetHTTPConfig().XSourceHeaderName, config.GetHTTPConfig().XSourceValue)
@@ -267,17 +268,15 @@ func (nr *NetHTTPRequest) StartRequest() {
 					}
 				}
 			}
-		} else {
-			span.Tracer().Inject(
-				span.Context(),
-				opentracing.HTTPHeaders,
-				opentracing.HTTPHeadersCarrier(httpRequest.Header),
-			)
 		}
 	} else {
-		nr.logger.Debugf("Wirecontext: %#v", wireContext)
+		span = opentracing.StartSpan(
+			operation,
+			opentracing.ChildOf(wireContext),
+		)
+
 		if nr.isInbound {
-			context := wireContext.(jaeger.SpanContext)
+			context := span.Context().(jaeger.SpanContext)
 			nr.tracingContextMapping.SetDefault(
 				httpRequest.Header.Get(httpConfig.RequestIdHeaderName),
 				context,
@@ -288,6 +287,12 @@ func (nr *NetHTTPRequest) StartRequest() {
 			opentracing.ChildOf(wireContext),
 		)
 	}
+
+	httpRequest.Header.Del(jaeger.TraceContextHeaderName)
+	span.Tracer().Inject(
+		span.Context(),
+		opentracing.HTTPHeaders,
+		opentracing.HTTPHeadersCarrier(httpRequest.Header))
 
 	nr.spans.Push(span)
 }
