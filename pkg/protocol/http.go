@@ -210,6 +210,7 @@ type NetHTTPRequest struct {
 	tracingContextMapping *cache.Cache
 	logger                *log.Logger
 	remoteAddr            string
+	mu                    sync.RWMutex
 }
 
 func NewNetHTTPRequest(logger *log.Logger, isInbound bool, tracingContextMapping *cache.Cache) *NetHTTPRequest {
@@ -224,6 +225,8 @@ func NewNetHTTPRequest(logger *log.Logger, isInbound bool, tracingContextMapping
 }
 
 func (nr *NetHTTPRequest) StartRequest() {
+	nr.mu.Lock()
+	defer nr.mu.Unlock()
 	request := nr.httpRequests.Peek()
 	if request == nil {
 		return
@@ -298,6 +301,8 @@ func (nr *NetHTTPRequest) StartRequest() {
 }
 
 func (nr *NetHTTPRequest) StopRequest() {
+	nr.mu.RLock()
+	defer nr.mu.RUnlock()
 	request := nr.httpRequests.Pop()
 	response := nr.httpResponses.Pop()
 	if request != nil && response != nil {
