@@ -1,3 +1,7 @@
+# 0.8
+- Statsd support
+- Inbound metrics sending
+
 # 0.7.3
 - Fixed parent injecting logic
 

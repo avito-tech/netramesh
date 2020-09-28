@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/patrickmn/go-cache"
+	"gopkg.in/alexcesaro/statsd.v2"
 
 	"github.com/Lookyan/netramesh/internal/config"
 	"github.com/Lookyan/netramesh/pkg/estabcache"
@@ -66,6 +67,7 @@ func HandleConnection(
 	ec *estabcache.EstablishedCache,
 	tracingContextMapping *cache.Cache,
 	routingInfoContextMapping *cache.Cache,
+	statsdMetrics *statsd.Client,
 ) {
 	if conn == nil {
 		return
@@ -115,7 +117,7 @@ func HandleConnection(
 
 	// determine protocol and choose logic
 	p := protocol.Determine(originalDstAddr)
-	netRequest := protocol.GetNetRequest(p, isInBoundConn, logger, tracingContextMapping)
+	netRequest := protocol.GetNetRequest(p, isInBoundConn, logger, tracingContextMapping, statsdMetrics)
 	netHandler := protocol.GetNetworkHandler(p, logger, tracingContextMapping)
 
 	//ec.Add(dstAddr)

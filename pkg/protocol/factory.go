@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"github.com/patrickmn/go-cache"
+	statsd "gopkg.in/alexcesaro/statsd.v2"
 
 	"github.com/Lookyan/netramesh/pkg/log"
 )
@@ -37,10 +38,11 @@ func GetNetRequest(
 	proto Proto,
 	isInbound bool,
 	logger *log.Logger,
-	tracingContextMapping *cache.Cache) NetRequest {
+	tracingContextMapping *cache.Cache,
+	statsdMetrics *statsd.Client) NetRequest {
 	switch proto {
 	case HTTPProto:
-		return NewNetHTTPRequest(logger, isInbound, tracingContextMapping)
+		return NewNetHTTPRequest(logger, isInbound, tracingContextMapping, statsdMetrics)
 	case TCPProto:
 		return netTCPRequest
 	default:

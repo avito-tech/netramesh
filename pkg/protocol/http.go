@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/patrickmn/go-cache"
 	"github.com/uber/jaeger-client-go"
+	"gopkg.in/alexcesaro/statsd.v2"
 
 	"github.com/Lookyan/netramesh/internal/config"
 	nhttp "github.com/Lookyan/netramesh/pkg/http"
@@ -326,9 +328,14 @@ type NetHTTPRequest struct {
 	tracingContextMapping *cache.Cache
 	logger                *log.Logger
 	remoteAddr            string
+	statsdClient          *statsd.Client
 }
 
-func NewNetHTTPRequest(logger *log.Logger, isInbound bool, tracingContextMapping *cache.Cache) *NetHTTPRequest {
+func NewNetHTTPRequest(
+	logger *log.Logger,
+	isInbound bool,
+	tracingContextMapping *cache.Cache,
+	statsdMetrics *statsd.Client) *NetHTTPRequest {
 	return &NetHTTPRequest{
 		httpRequests:          NewQueue(),
 		httpResponses:         NewQueue(),
@@ -336,6 +343,7 @@ func NewNetHTTPRequest(logger *log.Logger, isInbound bool, tracingContextMapping
 		logger:                logger,
 		isInbound:             isInbound,
 		tracingContextMapping: tracingContextMapping,
+		statsdClient:          statsdMetrics,
 	}
 }
 
@@ -467,6 +475,10 @@ func (nr *NetHTTPRequest) fillSpan(
 		span.SetTag("http.status_code", resp.StatusCode)
 		if resp.StatusCode >= 500 {
 			span.SetTag("error", "true")
+		}
+		// also send inbound metric:
+		if nr.isInbound {
+			nr.statsdClient.Increment("inbound." + strconv.Itoa(resp.StatusCode))
 		}
 	}
 }
