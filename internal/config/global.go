@@ -28,6 +28,9 @@ type NetraConfig struct {
 	RoutingContextCleanupInterval time.Duration
 	LoggerLevel                   log.Level
 	HTTPProtoPorts                map[string]struct{}
+	StatsdEnabled                 bool
+	StatsdAddress                 string
+	StatsdPrefix                  string
 }
 
 var netraConfig = NetraConfig{
@@ -88,6 +91,9 @@ const (
 	envNetraRoutingContextExpiration      = "NETRA_ROUTING_CONTEXT_EXPIRATION_MILLISECONDS"
 	envNetraRoutingContextCleanupInterval = "NETRA_ROUTING_CONTEXT_CLEANUP_INTERVAL"
 	envNetraHTTPPorts                     = "NETRA_HTTP_PORTS"
+	envNetraStatsdEnabled                 = "NETRA_STATSD_ENABLED"
+	envNetraStatsdAddress                 = "NETRA_STATSD_ADDRESS"
+	envNetraStatsdPrefix                  = "NETRA_STATSD_PREFIX"
 	envHttpHeaderTagMap                   = "HTTP_HEADER_TAG_MAP"
 	envHttpCookieTagMap                   = "HTTP_COOKIE_TAG_MAP"
 	envHttpRequestIdHeaderName            = "NETRA_HTTP_REQUEST_ID_HEADER_NAME"
@@ -215,6 +221,18 @@ func GlobalConfigFromENV(logger *log.Logger) error {
 			httpConfig.TracingIgnoredPaths[path] = true
 			logger.Infof("loaded ignored path: %s", path)
 		}
+	}
+
+	if v := os.Getenv(envNetraStatsdEnabled); v == "true" {
+		netraConfig.StatsdEnabled = true
+	}
+
+	if v := os.Getenv(envNetraStatsdAddress); v != "" {
+		netraConfig.StatsdAddress = v
+	}
+
+	if v := os.Getenv(envNetraStatsdPrefix); v != "" {
+		netraConfig.StatsdPrefix = v
 	}
 
 	return nil

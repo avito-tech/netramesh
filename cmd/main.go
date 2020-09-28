@@ -12,6 +12,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
+	"gopkg.in/alexcesaro/statsd.v2"
 
 	"github.com/Lookyan/netramesh/internal/config"
 	"github.com/Lookyan/netramesh/pkg/estabcache"
@@ -35,6 +36,14 @@ func main() {
 	err = config.GlobalConfigFromENV(logger)
 	if err != nil {
 		logger.Fatal(err.Error())
+	}
+
+	// init statsd client
+	statsdMetricsClient, err := statsd.New(statsd.Mute(!config.GetNetraConfig().StatsdEnabled),
+		statsd.Address(config.GetNetraConfig().StatsdAddress),
+		statsd.Prefix(config.GetNetraConfig().StatsdPrefix))
+	if err != nil {
+		logger.Errorf("Can not init statsd metrics: %s", err.Error())
 	}
 
 	go func() {
@@ -103,6 +112,7 @@ func main() {
 			conn,
 			establishedCache,
 			tracingContextMapping,
-			routingInfoContextMapping)
+			routingInfoContextMapping,
+			statsdMetricsClient)
 	}
 }
