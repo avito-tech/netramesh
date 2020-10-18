@@ -23,6 +23,9 @@ type NetraConfig struct {
 	TracingContextCleanupInterval time.Duration
 	LoggerLevel                   log.Level
 	HTTPProtoPorts                map[string]struct{}
+	StatsdEnabled                 bool
+	StatsdAddress                 string
+	StatsdPrefix                  string
 }
 
 var netraConfig = NetraConfig{
@@ -72,6 +75,9 @@ const (
 	envHttpRequestIdHeaderName            = "NETRA_HTTP_REQUEST_ID_HEADER_NAME"
 	envHttpXSourceHeaderName              = "NETRA_HTTP_X_SOURCE_HEADER_NAME"
 	envHTTPXSourceValue                   = "NETRA_HTTP_X_SOURCE_VALUE"
+	envNetraStatsdEnabled                 = "NETRA_STATSD_ENABLED"
+	envNetraStatsdAddress                 = "NETRA_STATSD_ADDRESS"
+	envNetraStatsdPrefix                  = "NETRA_STATSD_PREFIX"
 )
 
 func GlobalConfigFromENV(logger *log.Logger) error {
@@ -144,6 +150,15 @@ func GlobalConfigFromENV(logger *log.Logger) error {
 	}
 	if v := os.Getenv(envHTTPXSourceValue); v != "" {
 		httpConfig.XSourceValue = v
+	}
+	if v := os.Getenv(envNetraStatsdEnabled); v == "true" {
+		netraConfig.StatsdEnabled = true
+	}
+	if v := os.Getenv(envNetraStatsdAddress); v != "" {
+		netraConfig.StatsdAddress = v
+	}
+	if v := os.Getenv(envNetraStatsdPrefix); v != "" {
+		netraConfig.StatsdPrefix = v
 	}
 
 	return nil

@@ -1,4 +1,4 @@
-FROM golang:1.11
+FROM golang:1.12
 
 COPY . /go/src/github.com/Lookyan/netramesh
 WORKDIR /go/src/github.com/Lookyan/netramesh

@@ -87,6 +87,14 @@
   pruneopts = "UT"
   revision = "351d144fa1fc0bd934e2408202be0c29f25e35a0"
 
+[[projects]]
+  digest = "1:38b469493eb173db9c03321d64adcad4c7991ea0a19b5edc5bdc094f0e8c7384"
+  name = "gopkg.in/alexcesaro/statsd.v2"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "7fea3f0d2fab1ad973e641e51dba45443a311a90"
+  version = "v2.0.0"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
@@ -96,6 +104,7 @@
     "github.com/patrickmn/go-cache",
     "github.com/uber/jaeger-client-go",
     "github.com/uber/jaeger-client-go/config",
+    "gopkg.in/alexcesaro/statsd.v2",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"gopkg.in/alexcesaro/statsd.v2"
 	"net"
 	"os"
 	"strconv"
@@ -48,6 +49,7 @@ func HandleConnection(
 	conn *net.TCPConn,
 	ec *estabcache.EstablishedCache,
 	tracingContextMapping *cache.Cache,
+	statsdMetrics *statsd.Client,
 ) {
 	if conn == nil {
 		return
@@ -117,7 +119,7 @@ func HandleConnection(
 
 	// determine protocol and choose logic
 	p := protocol.Determine(dstAddr)
-	netRequest := protocol.GetNetRequest(p, isInBoundConn, logger, tracingContextMapping)
+	netRequest := protocol.GetNetRequest(p, isInBoundConn, logger, tracingContextMapping, statsdMetrics)
 	netHandler := protocol.GetNetworkHandler(p, logger, tracingContextMapping)
 
 	//ec.Add(dstAddr)

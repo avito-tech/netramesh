@@ -1,3 +1,7 @@
+# 0.4.3
+- Statsd support
+- Inbound metrics sending
+
 # 0.4.1
 - Bugfix port (parent span resolving)
 

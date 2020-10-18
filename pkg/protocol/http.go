@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"container/list"
+	"gopkg.in/alexcesaro/statsd.v2"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -211,9 +213,13 @@ type NetHTTPRequest struct {
 	logger                *log.Logger
 	remoteAddr            string
 	mu                    sync.RWMutex
+	statsdClient          *statsd.Client
 }
 
-func NewNetHTTPRequest(logger *log.Logger, isInbound bool, tracingContextMapping *cache.Cache) *NetHTTPRequest {
+func NewNetHTTPRequest(logger *log.Logger,
+	isInbound bool,
+	tracingContextMapping *cache.Cache,
+	statsdMetrics *statsd.Client) *NetHTTPRequest {
 	return &NetHTTPRequest{
 		httpRequests:          NewQueue(),
 		httpResponses:         NewQueue(),
@@ -221,6 +227,7 @@ func NewNetHTTPRequest(logger *log.Logger, isInbound bool, tracingContextMapping
 		logger:                logger,
 		isInbound:             isInbound,
 		tracingContextMapping: tracingContextMapping,
+		statsdClient:          statsdMetrics,
 	}
 }
 
@@ -356,6 +363,10 @@ func (nr *NetHTTPRequest) fillSpan(
 		span.SetTag("http.status_code", resp.StatusCode)
 		if resp.StatusCode >= 500 {
 			span.SetTag("error", "true")
+		}
+		// also send inbound metric:
+		if nr.isInbound {
+			nr.statsdClient.Increment("inbound." + strconv.Itoa(resp.StatusCode))
 		}
 	}
 }

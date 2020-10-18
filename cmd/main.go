@@ -3,15 +3,16 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/Lookyan/netramesh/pkg/protocol"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 
+	"github.com/Lookyan/netramesh/pkg/protocol"
 	"github.com/opentracing/opentracing-go"
 	"github.com/patrickmn/go-cache"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
+	"gopkg.in/alexcesaro/statsd.v2"
 
 	"github.com/Lookyan/netramesh/internal/config"
 	"github.com/Lookyan/netramesh/pkg/estabcache"
@@ -34,6 +35,14 @@ func main() {
 	err = config.GlobalConfigFromENV(logger)
 	if err != nil {
 		logger.Fatal(err.Error())
+	}
+
+	// init statsd client
+	statsdMetricsClient, err := statsd.New(statsd.Mute(!config.GetNetraConfig().StatsdEnabled),
+		statsd.Address(config.GetNetraConfig().StatsdAddress),
+		statsd.Prefix(config.GetNetraConfig().StatsdPrefix))
+	if err != nil {
+		logger.Errorf("Can not init statsd metrics: %s", err.Error())
 	}
 
 	go func() {
@@ -82,6 +91,6 @@ func main() {
 			logger.Warning(err.Error())
 			continue
 		}
-		go transport.HandleConnection(logger, conn, establishedCache, tracingContextMapping)
+		go transport.HandleConnection(logger, conn, establishedCache, tracingContextMapping, statsdMetricsClient)
 	}
 }

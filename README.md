@@ -75,6 +75,9 @@ HTTP_HEADER_TAG_MAP | comma separated HTTP header to jaeger span tag conversion 
 HTTP_COOKIE_TAG_MAP | comma separated HTTP cookie value to span tag conversion (example: `sess:http.cookies.sess`)
 NETRA_HTTP_X_SOURCE_HEADER_NAME | source HTTP header name. Automatically added to each outbound request in case this header absent in request (defaults to X-Source)
 NETRA_HTTP_X_SOURCE_VALUE | source HTTP header value (defaults to netra)
+NETRA_STATSD_ENABLED | enabling statsd. Set "true" to enable (defaults to false)
+NETRA_STATSD_PREFIX | Statsd prefix for all metrics (defaults to "")
+NETRA_STATSD_ADDRESS | Statsd gate (defaults to "")
 
 Also it supports all env variables [jaeger go library](https://github.com/jaegertracing/jaeger-client-go#environment-variables) provides.
 
