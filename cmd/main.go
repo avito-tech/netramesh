@@ -99,7 +99,7 @@ func main() {
 		config.GetNetraConfig().RoutingContextCleanupInterval,
 	)
 
-	protocol.InitHandlerRequest(logger, tracingContextMapping, routingInfoContextMapping)
+	protocol.InitHandlerRequest(logger, statsdMetricsClient, tracingContextMapping, routingInfoContextMapping)
 
 	for {
 		conn, err := ln.AcceptTCP()
