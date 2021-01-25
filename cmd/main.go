@@ -83,7 +83,7 @@ func main() {
 		config.GetNetraConfig().TracingContextCleanupInterval,
 	)
 
-	protocol.InitHandlerRequest(logger, tracingContextMapping)
+	protocol.InitHandlerRequest(logger, statsdMetricsClient, tracingContextMapping)
 
 	for {
 		conn, err := ln.AcceptTCP()

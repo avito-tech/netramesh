@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"container/list"
+	"fmt"
 	"gopkg.in/alexcesaro/statsd.v2"
 	"io"
 	"net"
@@ -39,13 +40,18 @@ var writerPool = sync.Pool{
 type HTTPHandler struct {
 	tracingContextMapping *cache.Cache
 	logger                *log.Logger
+	statsdMetrics         *statsd.Client
 }
 
 // NewHTTPHandler returns HTTP handler
-func NewHTTPHandler(logger *log.Logger, tracingContextMapping *cache.Cache) *HTTPHandler {
+func NewHTTPHandler(
+	logger *log.Logger,
+	statsdMetrics *statsd.Client,
+	tracingContextMapping *cache.Cache) *HTTPHandler {
 	return &HTTPHandler{
 		tracingContextMapping: tracingContextMapping,
 		logger:                logger,
+		statsdMetrics:         statsdMetrics,
 	}
 }
 
@@ -115,6 +121,16 @@ func (h *HTTPHandler) HandleRequest(r *net.TCPConn, w *net.TCPConn, netRequest N
 					req.Header[jaeger.TraceContextHeaderName] = []string{tracingContext.String()}
 				}
 			}
+			if v := req.Header.Get(config.GetHTTPConfig().XSourceHeaderName); v != "" && v != config.GetHTTPConfig().XSourceValue {
+				h.statsdMetrics.Increment(
+					fmt.Sprintf(
+						"outbound.x_source.required.%s.actual.%s",
+						config.GetHTTPConfig().XSourceValue,
+						v,
+					),
+				)
+			}
+
 			if v := req.Header.Get(config.GetHTTPConfig().XSourceHeaderName); v == "" {
 				req.Header.Set(config.GetHTTPConfig().XSourceHeaderName, config.GetHTTPConfig().XSourceValue)
 			}

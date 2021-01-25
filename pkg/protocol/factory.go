@@ -11,8 +11,8 @@ var httpHandler *HTTPHandler
 var tcpHandler *TCPHandler
 var netTCPRequest *NetTCPRequest
 
-func InitHandlerRequest(logger *log.Logger, tracingContextMapping *cache.Cache) {
-	httpHandler = NewHTTPHandler(logger, tracingContextMapping)
+func InitHandlerRequest(logger *log.Logger, statsdMetrics *statsd.Client, tracingContextMapping *cache.Cache) {
+	httpHandler = NewHTTPHandler(logger, statsdMetrics, tracingContextMapping)
 	tcpHandler = NewTCPHandler(logger)
 	netTCPRequest = NewNetTCPRequest(logger)
 }
