@@ -1,3 +1,6 @@
+# 0.9
+- Incorrect x-source value metric added
+
 # 0.8
 - Statsd support
 - Inbound metrics sending
