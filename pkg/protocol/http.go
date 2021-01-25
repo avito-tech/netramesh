@@ -41,17 +41,20 @@ type HTTPHandler struct {
 	tracingContextMapping     *cache.Cache
 	routingInfoContextMapping *cache.Cache
 	logger                    *log.Logger
+	statsdMetrics             *statsd.Client
 }
 
 // NewHTTPHandler returns HTTP handler
 func NewHTTPHandler(
 	logger *log.Logger,
+	statsdMetrics *statsd.Client,
 	tracingContextMapping *cache.Cache,
 	routingInfoContextMapping *cache.Cache) *HTTPHandler {
 	return &HTTPHandler{
 		tracingContextMapping:     tracingContextMapping,
 		routingInfoContextMapping: routingInfoContextMapping,
 		logger:                    logger,
+		statsdMetrics:             statsdMetrics,
 	}
 }
 
@@ -210,6 +213,17 @@ func (h *HTTPHandler) HandleRequest(
 					//h.logger.Debugf("Outbound span: %s", tracingContext.String())
 				}
 			}
+
+			if v := req.Header.Get(config.GetHTTPConfig().XSourceHeaderName); v != "" && v != config.GetHTTPConfig().XSourceValue {
+				h.statsdMetrics.Increment(
+					fmt.Sprintf(
+						"outbound.x_source.required.%s.actual.%s",
+						config.GetHTTPConfig().XSourceValue,
+						v,
+					),
+				)
+			}
+
 			if v := req.Header.Get(config.GetHTTPConfig().XSourceHeaderName); v == "" {
 				req.Header.Set(config.GetHTTPConfig().XSourceHeaderName, config.GetHTTPConfig().XSourceValue)
 			}

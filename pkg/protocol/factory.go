@@ -13,9 +13,10 @@ var netTCPRequest *NetTCPRequest
 
 func InitHandlerRequest(
 	logger *log.Logger,
+	statsdMetrics *statsd.Client,
 	tracingContextMapping *cache.Cache,
 	routingInfoContextMapping *cache.Cache) {
-	httpHandler = NewHTTPHandler(logger, tracingContextMapping, routingInfoContextMapping)
+	httpHandler = NewHTTPHandler(logger, statsdMetrics, tracingContextMapping, routingInfoContextMapping)
 	tcpHandler = NewTCPHandler(logger)
 	netTCPRequest = NewNetTCPRequest(logger)
 }
