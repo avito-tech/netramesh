@@ -139,11 +139,9 @@ func HandleConnection(
 		defer netRequest.CleanUp()
 
 		callCh := make(chan func(), 10)
-		wg := sync.WaitGroup{}
 		go func() {
 			for f := range callCh {
 				f()
-				wg.Done()
 			}
 		}()
 		for {
@@ -182,11 +180,8 @@ func HandleConnection(
 				netHandler.HandleResponse(targetConn, conn, netRequest, isInBoundConn, true)
 				closeConn(logger, targetConn)
 			}
-			wg.Add(1)
 			callCh <- respRoutine
 		}
-		wg.Wait()
-		close(callCh)
 	} else {
 		tcpDstAddr, err := net.ResolveTCPAddr("tcp", originalDstAddr)
 		if err != nil {
@@ -229,44 +224,4 @@ func closeConn(logger *log.Logger, conn *net.TCPConn) {
 	conn.CloseWrite()
 	conn.Close()
 	logger.Debug("Closed conn")
-}
-
-type MutexQueue struct {
-	muList *list.List
-	mu     sync.Mutex
-}
-
-// MutexQueue implements mutex queue with FIFO support
-func NewMutexQueue() *MutexQueue {
-	return &MutexQueue{
-		muList: list.New(),
-	}
-}
-
-func (mq *MutexQueue) Lock() {
-	mq.mu.Lock()
-	if mq.muList.Len() == 0 {
-		m := &sync.Mutex{}
-		mq.muList.PushBack(m)
-		m.Lock()
-		mq.mu.Unlock()
-		return
-	}
-
-	tailMutex := mq.muList.Back().Value.(*sync.Mutex)
-	m := &sync.Mutex{}
-	mq.muList.PushBack(m)
-	m.Lock()
-
-	mq.mu.Unlock()
-	tailMutex.Lock()
-	tailMutex.Unlock()
-}
-
-func (mq *MutexQueue) Unlock() {
-	mq.mu.Lock()
-	frontMuEl := mq.muList.Front()
-	frontMu := mq.muList.Remove(frontMuEl).(*sync.Mutex)
-	frontMu.Unlock()
-	mq.mu.Unlock()
 }
