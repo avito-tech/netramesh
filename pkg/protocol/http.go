@@ -171,6 +171,9 @@ func (h *HTTPHandler) HandleRequest(
 				h.logger.Warning(err.Error())
 			}
 			tmpWriter.Stop()
+			if bufioHTTPReader.Buffered() > 0 {
+				bufioHTTPReader.Discard(bufioHTTPReader.Buffered())
+			}
 			buf = bufferPool.Get().([]byte)
 			_, err = io.CopyBuffer(w, bufioHTTPReader, buf)
 			bufferPool.Put(buf)
@@ -188,6 +191,9 @@ func (h *HTTPHandler) HandleRequest(
 				h.logger.Warning(err.Error())
 			}
 			tmpWriter.Stop()
+			if bufioHTTPReader.Buffered() > 0 {
+				bufioHTTPReader.Discard(bufioHTTPReader.Buffered())
+			}
 			buf = bufferPool.Get().([]byte)
 			_, err = io.CopyBuffer(w, bufioHTTPReader, buf)
 			bufferPool.Put(buf)
@@ -277,6 +283,9 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 				h.logger.Warning(err.Error())
 			}
 			tmpWriter.Stop()
+			if bufioHTTPReader.Buffered() > 0 {
+				bufioHTTPReader.Discard(bufioHTTPReader.Buffered())
+			}
 			_, err = io.Copy(w, bufioHTTPReader)
 			if err != nil {
 				h.logger.Warning(err.Error())
@@ -291,6 +300,9 @@ func (h *HTTPHandler) HandleResponse(r *net.TCPConn, w *net.TCPConn, netRequest 
 				h.logger.Warning(err.Error())
 			}
 			tmpWriter.Stop()
+			if bufioHTTPReader.Buffered() > 0 {
+				bufioHTTPReader.Discard(bufioHTTPReader.Buffered())
+			}
 			_, err = io.Copy(w, bufioHTTPReader)
 			if err != nil {
 				h.logger.Warning(err.Error())
