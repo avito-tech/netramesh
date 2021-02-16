@@ -1,3 +1,6 @@
+# 0.9.1
+- Fix websocket duplication of first message
+
 # 0.9
 - Incorrect x-source value metric added
 
