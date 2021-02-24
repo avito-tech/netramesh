@@ -1,3 +1,6 @@
+# 0.4.6
+- X-Source netra value rewrites existing one
+
 # 0.4.3
 - Statsd support
 - Inbound metrics sending

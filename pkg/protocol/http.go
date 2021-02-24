@@ -127,19 +127,7 @@ func (h *HTTPHandler) HandleRequest(r *net.TCPConn, w *net.TCPConn, netRequest N
 					req.Header[jaeger.TraceContextHeaderName] = []string{tracingContext.String()}
 				}
 			}
-			if v := req.Header.Get(config.GetHTTPConfig().XSourceHeaderName); v != "" && v != config.GetHTTPConfig().XSourceValue {
-				h.statsdMetrics.Increment(
-					fmt.Sprintf(
-						"outbound.x_source.required.%s.actual.%s",
-						config.GetHTTPConfig().XSourceValue,
-						v,
-					),
-				)
-			}
-
-			if v := req.Header.Get(config.GetHTTPConfig().XSourceHeaderName); v == "" {
-				req.Header.Set(config.GetHTTPConfig().XSourceHeaderName, config.GetHTTPConfig().XSourceValue)
-			}
+			req.Header.Set(config.GetHTTPConfig().XSourceHeaderName, config.GetHTTPConfig().XSourceValue)
 		}
 
 		netHTTPRequest.SetHTTPRequest(req)
