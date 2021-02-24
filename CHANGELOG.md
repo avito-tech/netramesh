@@ -1,3 +1,6 @@
+# 0.10.0
+- Force assign x-source
+
 # 0.9.1
 - Fix websocket duplication of first message
 
