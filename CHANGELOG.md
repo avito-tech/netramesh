@@ -1,3 +1,6 @@
+# 0.10
+- X-Source netra value rewrites existing one
+
 # 0.9.1
 - Fix websocket duplication of first message
 
