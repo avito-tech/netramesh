@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"container/list"
-	"fmt"
 	"gopkg.in/alexcesaro/statsd.v2"
 	"io"
 	"net"
